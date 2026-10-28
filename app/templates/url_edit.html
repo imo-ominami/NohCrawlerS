@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}URL登録{% endblock %}
+{% block content %}
+{% if mode == "new" %}
+    <h1>新規登録</h1>
+{% else %}
+    <h1>URL編集</h1>
+{% endif %}
+
+<div class="mb-3">
+    <a class="btn btn-outline-secondary" href="/urls">一覧へ戻る</a>
+    <button class="btn btn-primary" type="submit" form="url-entry-form">保存</button>
+    {% if mode == "edit" %}
+    <form method="post" action="/urls/delete/{{ row.id }}" style="display:inline;">
+        <button
+            type="submit"
+            class="btn btn-danger"
+            onclick="return confirm('削除します。よろしいですか？');">削除</button>
+    </form>
+    {% endif %}
+</div>
+
+{% if mode == "new" %}
+    <form id="url-entry-form" method="post" action="/urls/create">
+{% else %}
+    <form id="url-entry-form" method="post" action="/urls/update/{{ row.id }}">
+{% endif %}
+
+<div>
+    <label>名称</label><br>
+    <input class="form-control"
+        type="text"
+        name="name"
+        value="{{ row.name if mode == 'edit' else '' }}"
+        required
+    >
+</div>
+
+<br>
+
+<div>
+    <label>URL</label><br>
+    <input class="form-control"
+        type="text"
+        name="url"
+        size="80"
+        value="{{ row.url if mode == 'edit' else '' }}"
+        required
+    >
+</div>
+
+<br>
+
+<div>
+    <label>
+        <input
+            type="checkbox"
+            name="enabled"
+
+            {% if mode == 'new' %}
+                checked
+            {% elif row.enabled %}
+                checked
+            {% endif %}
+        >
+        有効
+    </label>
+</div>
+
+<br>
+
+</form>
+
+{% endblock %}

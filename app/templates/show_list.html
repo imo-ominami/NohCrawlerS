@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}公演情報{% endblock %}
+{% block content %}
+<h1>公演情報一覧</h1>
+
+<p>
+    <form method="get" action="/" class="d-inline">
+        <input type="hidden" name="start_date" value="{{ start_date }}">
+        <input type="hidden" name="end_date" value="{{ end_date }}">
+        <input type="hidden" name="prefucture" value="{{ prefucture }}">
+        <button type="submit" class="btn btn-outline-secondary">メニューへ戻る</button>
+    </form>
+    <a class="btn btn-primary" href="/shows/new">新規登録</a>
+</p>
+
+<div class="table-responsive">
+<table class="table table-striped table-hover show-info-table">
+    <thead>
+        <tr>
+            <th class="show-date">公演日</th>
+            <th class="show-prefecture">都道府県</th>
+            <th class="show-name">公演名</th>
+            <th class="show-venue">会場</th>
+            <th class="show-starttime">開始時間</th>
+            <th class="show-url">URL</th>
+            <th class="show-edit">編集</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td class="show-date">{{ row.showdate[2:4] }}/{{ row.showdate[5:7] }}/{{ row.showdate[8:10] }}</td>
+            <td class="show-prefecture">{{ row.prefucture or '' }}</td>
+            <td class="show-name">{{ row.showname }}</td>
+            <td class="show-venue">{{ row.venues or '' }}</td>
+            <td class="show-starttime">{{ row.starttime or '' }}</td>
+            <td class="show-url"><a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.url }}</a></td>
+            <td class="show-edit"><a href="/shows/{{ row.id }}">編集</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

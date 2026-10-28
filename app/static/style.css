@@ -1,0 +1,205 @@
+:root {
+    --main-color: #3E5F3A;
+    --accent-color: #B89B5E;
+}
+
+h1 {
+    color: var(--main-color);
+    font-family: "Yu Mincho", "MS Mincho", serif;
+    font-size: 30px;
+    font-weight: bold;
+    border-bottom: 2px solid var(--accent-color);
+    padding-bottom: 8px;
+    margin-bottom: 20px;
+}
+
+body {
+    background-color: #F8F5EE; /* 和紙色 */
+    color: #295c24; /* 萌葱色 */
+    font-family: "Yu Gothic", "Meiryo", sans-serif;
+}
+
+.btn-primary {
+    background-color: #1d76a0;
+    border-color: #1d76a0;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+/* マウスを乗せた時 */
+.btn-primary:hover {
+    background-color: #1174a1;
+    border-color: #1174a1;
+}
+
+.btn-primary:active {
+    background-color: #39505a !important;
+    border-color: #39505a !important;
+}
+
+.btn-primary:disabled {
+    background-color: #47575e !important;
+    border-color: #47575e !important;
+    cursor: not-allowed;
+}
+
+.btn-danger {
+    background-color: #db5837;
+    border-color: #db5837;
+    color: white;
+}
+
+/* マウスを乗せた時 */
+.btn-danger:hover {
+    background-color: #db522f;
+    border-color: #db522f;
+}
+
+.btn-danger:active {
+    background-color: #db522f !important;
+    border-color: #db522f !important;
+}
+
+.btn-outline-primary {
+    background-color: #B89B5E;
+    border-color: #B89B5E;
+    color: white;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-primary:hover {
+    background-color: #b8954b;
+    border-color: #b8954b;
+}
+
+.btn-outline-primary:active {
+    background-color: #b8954b !important;
+    border-color: #b8954b !important;
+}
+
+.btn-outline-secondary {
+    background-color: #cccac9 !important;
+    border-color: #cccac9 !important;
+    color: rgb(26, 25, 25) !important;
+}
+
+
+.col-list{
+    width: 200px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.venue-prefecture {
+    width: 120px;
+}
+
+.venue-name {
+    width: 800px;
+}
+
+.show-edit-date {
+    width: 150px;
+}
+
+.show-edit-prefecture,
+.show-edit-starttime {
+    width: 120px;
+}
+
+.show-info-table {
+    table-layout: fixed;
+    min-width: 920px;
+    font-size: 1rem;
+}
+
+.table {
+    font-size: 1rem;
+}
+
+.table th,
+.table td {
+    padding: 0.75rem;
+    vertical-align: middle;
+}
+
+.search-date {
+    width: 70%;
+    min-width: 0;
+    padding-right: 0.35rem;
+    padding-left: 0.35rem;
+}
+
+.search-prefecture {
+    width: 8.5rem;
+    max-width: 100%;
+}
+
+.search-date-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.75rem;
+}
+
+.search-date-row > div {
+    min-width: 0;
+    flex: 0 0 calc((100% - 0.75rem) / 2);
+}
+
+.search-date-row .form-label {
+    white-space: nowrap;
+}
+
+.search-prefecture-field {
+    width: 8.5rem;
+    max-width: 100%;
+}
+
+.search-submit-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.show-info-table .show-date {
+    width: 100px;
+    white-space: nowrap;
+}
+
+.show-info-table .show-prefecture {
+    width: 80px;
+    white-space: nowrap;
+}
+
+.show-info-table .show-name {
+    width: 300px;
+}
+
+.show-info-table .show-venue {
+    width: 200px;
+}
+
+.show-info-table .show-starttime {
+    width: 100px;
+    white-space: nowrap;
+}
+
+.show-info-table .show-url {
+    width: 200px;
+}
+
+.show-info-table .show-url a {
+    color: #3E5F3A;
+    display: -webkit-box;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+}
+
+.show-info-table .show-edit {
+    width: 60px;
+    white-space: nowrap;
+}

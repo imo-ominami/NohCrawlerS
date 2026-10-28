@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}メニュー{% endblock %}
+{% block content %}
+<h1>メニュー</h1>
+
+    <section class="mb-4">
+        <h2 class="h5">能情報の取得</h2>
+        <p>サイトから能公演情報を取得します。</p>
+        <form id="crawl-form" method="post" action="/crawl" class="d-flex align-items-center gap-3">
+            <input type="hidden" name="crawl_token" value="{{ crawl_token }}">
+            <button id="crawl-button" type="submit" class="btn btn-primary">
+                能情報取得
+            </button>
+            <span id="crawl-progress" role="status" aria-live="polite" hidden>
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                能情報を取得しています...
+            </span>
+        </form>
+    </section>
+
+    {% if result %}
+    <div class="alert alert-success" role="status">
+        {{ result["登録公演数"] }}件の公演情報を取得しました。
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert alert-danger" role="alert">
+        能情報を取得できませんでした: {{ error }}
+    </div>
+    {% endif %}
+
+    <section>
+        <h2 class="h5">公演検索</h2>
+        <form id="show-search-form" method="post" action="/shows/search" class="mb-4">
+            <div class="search-date-row">
+                <div>
+                    <label for="start-date" class="form-label">公演日（開始）</label>
+                    <input id="start-date" class="form-control search-date" type="date" name="start_date" value="{{ (start_date or '')|replace('/', '-') }}" lang="ja">
+                </div>
+                <div>
+                    <label for="end-date" class="form-label">公演日（終了）</label>
+                    <input id="end-date" class="form-control search-date" type="date" name="end_date" value="{{ (end_date or '')|replace('/', '-') }}" lang="ja">
+                </div>
+            </div>
+            <div class="search-prefecture-field mt-3">
+                <label for="prefecture" class="form-label">都道府県</label>
+                <select id="prefecture" class="form-select search-prefecture" name="prefucture">
+                    <option value="">すべて</option>
+                    {% for row in prefectures %}
+                    <option value="{{ row.prefucture }}" {% if selected_prefucture == row.prefucture %}selected{% endif %}>{{ row.prefucture }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="search-submit-row mt-3">
+                <button type="submit" class="btn btn-primary">公演一覧</button>
+            </div>
+        </form>
+    </section>
+
+    <section>
+        <h2 class="h5">マスタ一覧</h2>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-primary" href="/urls">URLマスタ一覧</a>
+            <a class="btn btn-outline-primary" href="/venues">会場マスタ一覧</a>
+        </div>
+    </section>
+    {% if search_error %}
+    <script>
+        alert({{ search_error | tojson }});
+    </script>
+    {% endif %}
+    <script>
+        document.getElementById("show-search-form").addEventListener("keydown", function (event) {
+            if (event.key === "Enter" && event.target.matches(".search-date")) {
+                event.preventDefault();
+            }
+        });
+
+        document.getElementById("crawl-form").addEventListener("submit", function () {
+            document.getElementById("crawl-button").disabled = true;
+            document.getElementById("crawl-progress").hidden = false;
+        });
+
+        window.addEventListener("pageshow", function () {
+            document.getElementById("crawl-button").disabled = false;
+            document.getElementById("crawl-progress").hidden = true;
+        });
+    </script>
+{% endblock %}

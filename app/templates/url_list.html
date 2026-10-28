@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% block title %}URLマスタ{% endblock %}
+{% block content %}
+<h1>URLマスタ一覧</h1>
+
+<p>
+    <a class="btn btn-outline-secondary" href="/">メニューへ戻る</a>
+    <a class="btn btn-primary" href="/urls/new">新規登録</a>
+</p>
+
+<div class="table-responsive">
+<table class="table table-striped table-hover">
+
+<thead>
+    <tr>
+        <th class="col-list">名称</th>
+        <th class="col-list">URL</th>
+        <th>有効</th>
+        <th>編集</th>
+    </tr>
+</thead>
+
+<tbody>
+{% for row in rows %}
+<tr>
+    <td class="col-list">{{ row.name }}</td>
+    <td class="col-list">{{ row.url }}</td>
+    <td>
+        {% if row.enabled %}
+            ○
+        {% else %}
+            ×
+        {% endif %}
+    </td>
+
+    <td>
+        <a href="/urls/{{ row.id }}">
+            編集
+        </a>
+    </td>
+</tr>
+{% endfor %}
+</tbody>
+
+</table>
+</div>
+{% endblock %}

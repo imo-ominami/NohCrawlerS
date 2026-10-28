@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+# data.db is intentionally committed to a private repo as the initial Render seed.
+app.db
+.env

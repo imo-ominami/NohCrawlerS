@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}会場マスタ{% endblock %}
+{% block content %}
+<h1>会場マスタ一覧</h1>
+
+<p>
+    <a class="btn btn-outline-secondary" href="/">メニューへ戻る</a>
+    <a class="btn btn-primary" href="/venues/new">新規登録</a>
+</p>
+
+<div class="table-responsive">
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>都道府県</th>
+            <th>会場名</th>
+            <th>編集</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>{{ row.prefecture }}</td>
+            <td>{{ row.venue }}</td>
+            <td><a href="/venues/{{ row.id }}">編集</a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% block title %}会場登録{% endblock %}
+{% block content %}
+{% if mode == "new" %}
+    <h1>新規登録</h1>
+{% else %}
+    <h1>会場編集</h1>
+{% endif %}
+
+<div class="mb-3">
+    <a class="btn btn-outline-secondary" href="/venues">一覧へ戻る</a>
+    <button class="btn btn-primary" type="submit" form="venue-entry-form">保存</button>
+    {% if mode == "edit" %}
+    <form method="post" action="/venues/delete/{{ row.id }}" style="display:inline;">
+        <button
+            type="submit"
+            class="btn btn-danger"
+            onclick="return confirm('削除します。よろしいですか？');">削除</button>
+    </form>
+    {% endif %}
+</div>
+
+{% if mode == "new" %}
+    <form id="venue-entry-form" method="post" action="/venues/create">
+{% else %}
+    <form id="venue-entry-form" method="post" action="/venues/update/{{ row.id }}">
+{% endif %}
+
+<div>
+    <label>都道府県</label><br>
+    <select class="form-select venue-prefecture" name="code" required>
+        {% for p in prefectures %}
+        <option
+            value="{{ p.code }}"
+            {% if mode == "edit" and row.code == p.code %}
+                selected
+            {% endif %}
+        >
+            {{ p.prefecture }}
+        </option>
+        {% endfor %}
+    </select>
+</div>
+
+<br>
+
+<div>
+    <label>会場</label><br>
+    <input class="form-control venue-name"
+        type="text"
+        name="venue"
+        size="30"
+        value="{{ row.venue if mode == 'edit' else '' }}"
+        required
+    >
+</div>
+
+<br>
+<br>
+
+</form>
+
+{% endblock %}

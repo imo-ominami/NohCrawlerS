@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: noh-crawler
+    runtime: python
+    region: singapore
+    plan: 0.5c-512mb
+    buildCommand: pip install -r requirements.txt
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    disk:
+      name: noh-crawler-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.14.8
+      - key: APP_ENV
+        value: production
+      - key: APP_USERNAME
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+      - key: SQLITE_DB_PATH
+        value: /var/data/data.db
