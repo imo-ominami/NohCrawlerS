@@ -8,9 +8,14 @@
         <p>サイトから能公演情報を取得します。</p>
         <form id="crawl-form" method="post" action="/crawl" class="d-flex align-items-center gap-3">
             <input type="hidden" name="crawl_token" value="{{ crawl_token }}">
-            <button id="crawl-button" type="submit" class="btn btn-primary">
+            <input id="crawl-start-date" type="hidden" name="start_date" value="{{ start_date or '' }}">
+            <input id="crawl-end-date" type="hidden" name="end_date" value="{{ end_date or '' }}">
+            <input id="crawl-prefucture" type="hidden" name="prefucture" value="{{ selected_prefucture or '' }}">
+            <input id="crawl-favorite-only" type="hidden" name="favorite_only" value="{{ 1 if favorite_only else 0 }}">
+            <button id="crawl-button" type="submit" form="crawl-form" class="btn btn-primary">
                 能情報取得
             </button>
+            <span id="crawl-last-crawl">取得日時：{{ last_crawl_at or '未取得' }}</span>
             <span id="crawl-progress" role="status" aria-live="polite" hidden>
                 <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
                 能情報を取得しています...
@@ -21,6 +26,7 @@
     {% if result %}
     <div class="alert alert-success" role="status">
         {{ result["登録公演数"] }}件の公演情報を取得しました。
+        <span>新規公演{{ result["new_count"] }}件</span>
     </div>
     {% endif %}
 
@@ -32,6 +38,7 @@
 
     <section>
         <h2 class="h5">公演検索</h2>
+        <div class="border rounded p-3 mb-4">
         <form id="show-search-form" method="post" action="/shows/search" class="mb-4">
             <div class="search-date-row">
                 <div>
@@ -43,19 +50,26 @@
                     <input id="end-date" class="form-control search-date" type="date" name="end_date" value="{{ (end_date or '')|replace('/', '-') }}" lang="ja">
                 </div>
             </div>
-            <div class="search-prefecture-field mt-3">
-                <label for="prefecture" class="form-label">都道府県</label>
+            <div class="search-prefecture-field mt-3 d-flex align-items-end gap-3 flex-wrap">
+                <div>
+                    <label for="prefecture" class="form-label">都道府県</label>
                 <select id="prefecture" class="form-select search-prefecture" name="prefucture">
                     <option value="">すべて</option>
                     {% for row in prefectures %}
                     <option value="{{ row.prefucture }}" {% if selected_prefucture == row.prefucture %}selected{% endif %}>{{ row.prefucture }}</option>
                     {% endfor %}
                 </select>
+                </div>
+                <label class="form-check-label d-flex align-items-center gap-2 mb-2" for="favorite-only">
+                    <span aria-hidden="true">&#9734;</span>
+                    <input id="favorite-only" class="form-check-input m-0" type="checkbox" name="favorite_only" value="1" {% if favorite_only %}checked{% endif %}>
+                </label>
             </div>
             <div class="search-submit-row mt-3">
                 <button type="submit" class="btn btn-primary">公演一覧</button>
             </div>
         </form>
+        </div>
     </section>
 
     <section>
@@ -78,8 +92,13 @@
         });
 
         document.getElementById("crawl-form").addEventListener("submit", function () {
+            document.getElementById("crawl-start-date").value = document.getElementById("start-date").value;
+            document.getElementById("crawl-end-date").value = document.getElementById("end-date").value;
+            document.getElementById("crawl-prefucture").value = document.getElementById("prefecture").value;
+            document.getElementById("crawl-favorite-only").value = document.getElementById("favorite-only").checked ? "1" : "0";
             document.getElementById("crawl-button").disabled = true;
             document.getElementById("crawl-progress").hidden = false;
+            document.getElementById("crawl-last-crawl").hidden = true;
         });
 
         window.addEventListener("pageshow", function () {

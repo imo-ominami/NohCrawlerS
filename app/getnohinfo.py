@@ -1,3 +1,5 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -6,6 +8,7 @@ from sqlalchemy import text
 
 from .crawler import get_data
 from .db.engine import engine as database_engine
+from .db.sql_snapshots import ensure_restored, write_crawl_snapshot, write_table_snapshot
 from .output import EVENT_COLUMNS, _merge_events
 from .venue_master import _venue_master
 
@@ -35,10 +38,19 @@ def load_sites():
 
 
 def run_pipeline():
+    ensure_restored("url_masters", "prefucture_mst", "common_venues", "show_info")
     sites = load_sites()
     if not sites:
         raise ValueError("有効なURLマスタがありません")
 
+    with database_engine.begin() as conn:
+        conn.execute(text("DELETE FROM show_info_old"))
+        conn.execute(text("""
+            INSERT INTO show_info_old
+                (showdate, prefucture, showname, venues, starttime, memo, url, favorite, new)
+            SELECT showdate, prefucture, showname, venues, starttime, memo, url, favorite, new
+            FROM show_info
+        """))
     events = []
     seen_urls = set()
     successful_sites = 0
@@ -67,9 +79,9 @@ def run_pipeline():
             conn.execute(
                 text("""
                     INSERT INTO show_info
-                        (showdate, prefucture, showname, venues, starttime, memo, url)
+                        (showdate, prefucture, showname, venues, starttime, memo, url, favorite, new)
                     VALUES
-                        (:showdate, :prefucture, :showname, :venues, :starttime, :memo, :url)
+                        (:showdate, :prefucture, :showname, :venues, :starttime, :memo, :url, 0, 0)
                 """),
                 [
                     {
@@ -122,20 +134,50 @@ def run_pipeline():
             for event in merged_events.to_dict("records")
         ]
         if merged_rows:
+            old_shows = conn.execute(text(
+                "SELECT showdate, showname, venues, starttime, favorite FROM show_info_old"
+            )).fetchall()
+            show_key = lambda show: (
+                show.showdate,
+                show.showname,
+                show.venues,
+                show.starttime,
+            )
+            old_favorites = {show_key(row): int(row.favorite or 0) for row in old_shows}
+            for row in merged_rows:
+                key = (row["showdate"], row["showname"], row["venues"], row["starttime"])
+                row["favorite"] = old_favorites.get(key, 0)
+                row["new"] = 0 if key in old_favorites else 1
             conn.execute(
                 text("""
                     INSERT INTO show_info
-                        (showdate, prefucture, showname, venues, starttime, memo, url)
+                        (showdate, prefucture, showname, venues, starttime, memo, url, favorite, new)
                     VALUES
-                        (:showdate, :prefucture, :showname, :venues, :starttime, :memo, :url)
+                        (:showdate, :prefucture, :showname, :venues, :starttime, :memo, :url, :favorite, :new)
                 """),
                 merged_rows,
             )
+
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS app_state (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """))
+        conn.execute(text("""
+            INSERT INTO app_state (key, value) VALUES ('last_crawl_at', :value)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+        """), {"value": datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y/%m/%d %H:%M:%S")})
+
+    write_crawl_snapshot()
+    write_table_snapshot("show_info")
 
     result = {
         "取得公演数": len(events),
         "統合後公演数": len(merged_rows),
         "登録公演数": len(merged_rows),
+        "new_count": sum(row["new"] == 1 for row in merged_rows),
+        "registered_count": len(merged_rows),
     }
     print(f"[公演一覧] {result['登録公演数']}件を登録")
     return result

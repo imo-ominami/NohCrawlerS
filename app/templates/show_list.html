@@ -8,6 +8,7 @@
         <input type="hidden" name="start_date" value="{{ start_date }}">
         <input type="hidden" name="end_date" value="{{ end_date }}">
         <input type="hidden" name="prefucture" value="{{ prefucture }}">
+        <input type="hidden" name="favorite_only" value="{{ 1 if favorite_only else 0 }}">
         <button type="submit" class="btn btn-outline-secondary">メニューへ戻る</button>
     </form>
     <a class="btn btn-primary" href="/shows/new">新規登録</a>
@@ -17,6 +18,7 @@
 <table class="table table-striped table-hover show-info-table">
     <thead>
         <tr>
+            <th class="show-favorite">☆</th>
             <th class="show-date">公演日</th>
             <th class="show-prefecture">都道府県</th>
             <th class="show-name">公演名</th>
@@ -29,16 +31,86 @@
     <tbody>
         {% for row in rows %}
         <tr>
+            <td class="show-favorite"><input type="checkbox" class="favorite-checkbox" data-show-id="{{ row.id }}" aria-label="&#9734; Favorite" {% if row.favorite %}checked{% endif %}></td>
             <td class="show-date">{{ row.showdate[2:4] }}/{{ row.showdate[5:7] }}/{{ row.showdate[8:10] }}</td>
             <td class="show-prefecture">{{ row.prefucture or '' }}</td>
-            <td class="show-name">{{ row.showname }}</td>
+            <td class="show-name">{{ row.showname }}{% if row.new %} <span style="color: red;">new</span>{% endif %}</td>
             <td class="show-venue">{{ row.venues or '' }}</td>
             <td class="show-starttime">{{ row.starttime or '' }}</td>
             <td class="show-url"><a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.url }}</a></td>
-            <td class="show-edit"><a href="/shows/{{ row.id }}">編集</a></td>
+            <td class="show-edit"><a href="/shows/{{ row.id }}?start_date={{ start_date|urlencode }}&amp;end_date={{ end_date|urlencode }}&amp;prefucture={{ prefucture|urlencode }}&amp;favorite_only={{ 1 if favorite_only else 0 }}">編集</a></td>
         </tr>
         {% endfor %}
     </tbody>
 </table>
 </div>
+<p id="favorite-save-status" role="status" aria-live="polite"></p>
+<script>
+(() => {
+    const pending = new Map();
+    const status = document.getElementById("favorite-save-status");
+    let saving = null;
+
+    document.querySelectorAll(".favorite-checkbox").forEach((checkbox) => {
+        checkbox.addEventListener("change", () => {
+            pending.set(checkbox.dataset.showId, checkbox.checked);
+            status.textContent = "お気に入りの変更は画面移動時に保存されます。";
+        });
+    });
+
+    const snapshot = () => Array.from(pending, ([id, favorite]) => ({ id: Number(id), favorite }));
+    const savePending = async () => {
+        while (pending.size) {
+            if (saving) {
+                await saving;
+                continue;
+            }
+            const batch = snapshot();
+            saving = fetch("/shows/favorites", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(batch)
+            }).then((response) => {
+                if (!response.ok) throw new Error("Favorite save failed");
+                batch.forEach(({ id, favorite }) => {
+                    if (pending.get(String(id)) === favorite) pending.delete(String(id));
+                });
+                status.textContent = "お気に入りを保存しました。";
+            });
+            try {
+                await saving;
+            } finally {
+                saving = null;
+            }
+        }
+    };
+
+    document.addEventListener("click", async (event) => {
+        const link = event.target.closest("a[href]");
+        if (!link || link.target === "_blank" || event.defaultPrevented || event.button !== 0
+            || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !pending.size) return;
+        event.preventDefault();
+        try {
+            await savePending();
+            window.location.assign(link.href);
+        } catch {
+            status.textContent = "保存できませんでした。通信を確認してもう一度画面を移動してください。";
+        }
+    });
+
+    document.querySelectorAll("form").forEach((form) => {
+        form.addEventListener("submit", async (event) => {
+            if (!pending.size) return;
+            event.preventDefault();
+            try {
+                await savePending();
+                form.submit();
+            } catch {
+                status.textContent = "保存できませんでした。通信を確認してもう一度画面を移動してください。";
+            }
+        });
+    });
+
+})();
+</script>
 {% endblock %}

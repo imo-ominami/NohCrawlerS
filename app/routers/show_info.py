@@ -1,11 +1,13 @@
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from app.db.engine import engine
+from app.db.sql_snapshots import ensure_restored, write_table_snapshot
 
 router = APIRouter()
 
@@ -27,7 +29,8 @@ def _display_search_date(value):
     return value.replace("-", "/") if value else ""
 
 
-def _show_rows(start_date, end_date, prefucture):
+def _show_rows(start_date, end_date, prefucture, favorite_only=False):
+    ensure_restored("show_info")
     try:
         from_date = date.fromisoformat(start_date.replace("/", "-")) if start_date else None
         to_date = date.fromisoformat(end_date.replace("/", "-")) if end_date else None
@@ -44,6 +47,7 @@ def _show_rows(start_date, end_date, prefucture):
         )
 
     if prefucture:
+        ensure_restored("prefucture_mst")
         with engine.connect() as conn:
             valid_prefectures = {row.prefucture for row in _get_prefectures(conn)}
         if prefucture not in valid_prefectures:
@@ -63,12 +67,14 @@ def _show_rows(start_date, end_date, prefucture):
     if prefucture:
         filters.append("prefucture = :prefucture")
         params["prefucture"] = prefucture
+    if favorite_only:
+        filters.append("favorite = 1")
     where_clause = f"WHERE {' AND '.join(filters)}" if filters else ""
 
     with engine.connect() as conn:
         return conn.execute(
             text(f"""
-                SELECT id, showdate, prefucture, showname, venues, starttime, url
+                SELECT id, showdate, prefucture, showname, venues, starttime, url, favorite, new
                 FROM show_info
                 {where_clause}
                 ORDER BY date(replace(showdate, '-', '/')), id 
@@ -77,13 +83,28 @@ def _show_rows(start_date, end_date, prefucture):
         ).fetchall()
 
 
-def _show_list_context(rows, start_date, end_date, prefucture):
+def _show_list_context(rows, start_date, end_date, prefucture, favorite_only=False):
     return {
         "rows": rows,
         "start_date": _display_search_date(start_date),
         "end_date": _display_search_date(end_date),
         "prefucture": prefucture or "",
+        "favorite_only": favorite_only,
     }
+
+
+def _show_list_url(start_date, end_date, prefucture, favorite_only=False):
+    params = {
+        key: value
+        for key, value in {
+            "start_date": start_date,
+            "end_date": end_date,
+            "prefucture": prefucture,
+            "favorite_only": "1" if favorite_only else "",
+        }.items()
+        if value
+    }
+    return f"/shows?{urlencode(params)}" if params else "/shows"
 
 
 @router.get("/shows")
@@ -92,14 +113,43 @@ def show_list(
     start_date: str | None = Query(None),
     end_date: str | None = Query(None),
     prefucture: str | None = Query(None),
+    favorite_only: bool = Query(False),
 ):
-    rows = _show_rows(start_date, end_date, prefucture)
+    rows = _show_rows(start_date, end_date, prefucture, favorite_only)
 
     return templates.TemplateResponse(
         request=request,
         name="show_list.html",
-        context=_show_list_context(rows, start_date, end_date, prefucture),
+        context=_show_list_context(rows, start_date, end_date, prefucture, favorite_only),
     )
+
+
+@router.post("/shows/favorites")
+async def save_show_favorites(request: Request):
+    try:
+        favorites = await request.json()
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail="Invalid favorite data") from error
+
+    if not isinstance(favorites, list):
+        raise HTTPException(status_code=400, detail="Invalid favorite data")
+
+    ensure_restored("show_info")
+    with engine.begin() as conn:
+        for item in favorites:
+            if not isinstance(item, dict):
+                continue
+            try:
+                show_id = int(item["id"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            conn.execute(
+                text("UPDATE show_info SET favorite = :favorite WHERE id = :id"),
+                {"id": show_id, "favorite": int(bool(item.get("favorite")))},
+            )
+
+    write_table_snapshot("show_info")
+    return {"saved": len(favorites)}
 
 
 @router.post("/shows/search")
@@ -108,10 +158,12 @@ def show_search(
     start_date: str = Form(""),
     end_date: str = Form(""),
     prefucture: str = Form(""),
+    favorite_only: bool = Form(False),
 ):
     try:
-        rows = _show_rows(start_date or None, end_date or None, prefucture or None)
+        rows = _show_rows(start_date or None, end_date or None, prefucture or None, favorite_only)
     except HTTPException as error:
+        ensure_restored("prefucture_mst")
         with engine.connect() as conn:
             prefectures = _get_prefectures(conn)
         return templates.TemplateResponse(
@@ -123,11 +175,13 @@ def show_search(
                 "start_date": _display_search_date(start_date),
                 "end_date": _display_search_date(end_date),
                 "selected_prefucture": prefucture,
+                "favorite_only": favorite_only,
             },
             status_code=200,
         )
 
     if not rows:
+        ensure_restored("prefucture_mst")
         with engine.connect() as conn:
             prefectures = _get_prefectures(conn)
         return templates.TemplateResponse(
@@ -139,6 +193,7 @@ def show_search(
                 "start_date": _display_search_date(start_date),
                 "end_date": _display_search_date(end_date),
                 "selected_prefucture": prefucture,
+                "favorite_only": favorite_only,
             },
             status_code=200,
         )
@@ -146,12 +201,13 @@ def show_search(
     return templates.TemplateResponse(
         request=request,
         name="show_list.html",
-        context=_show_list_context(rows, start_date, end_date, prefucture),
+        context=_show_list_context(rows, start_date, end_date, prefucture, favorite_only),
     )
 
 
 @router.get("/shows/new")
 def show_new(request: Request):
+    ensure_restored("prefucture_mst")
     with engine.connect() as conn:
         prefectures = _get_prefectures(conn)
 
@@ -171,14 +227,16 @@ def show_create(
     venues: str | None = Form(None),
     starttime: str | None = Form(None),
     memo: str | None = Form(None),
+    favorite: bool = Form(False),
 ):
+    ensure_restored("show_info")
     with engine.begin() as conn:
         conn.execute(
             text("""
                 INSERT INTO show_info
-                    (showdate, prefucture, showname, venues, starttime, memo, url)
+                    (showdate, prefucture, showname, venues, starttime, memo, url, favorite)
                 VALUES
-                    (:showdate, :prefucture, :showname, :venues, :starttime, :memo, :url)
+                    (:showdate, :prefucture, :showname, :venues, :starttime, :memo, :url, :favorite)
             """),
             {
                 "showdate": showdate,
@@ -188,18 +246,29 @@ def show_create(
                 "starttime": starttime or None,
                 "memo": memo or None,
                 "url": url,
+                "favorite": int(favorite),
             },
         )
 
+    write_table_snapshot("show_info")
     return RedirectResponse(url="/shows", status_code=303)
 
 
 @router.get("/shows/{id}")
-def show_edit(request: Request, id: int):
+def show_edit(
+    request: Request,
+    id: int,
+    start_date: str | None = Query(None),
+    end_date: str | None = Query(None),
+    prefucture: str | None = Query(None),
+    favorite_only: bool = Query(False),
+):
+    ensure_restored("show_info")
+    ensure_restored("prefucture_mst")
     with engine.connect() as conn:
         row = conn.execute(
             text("""
-                SELECT id, showdate, prefucture, showname, venues, starttime, memo, url
+                SELECT id, showdate, prefucture, showname, venues, starttime, memo, url, favorite
                 FROM show_info
                 WHERE id = :id
             """),
@@ -213,7 +282,12 @@ def show_edit(request: Request, id: int):
     return templates.TemplateResponse(
         request=request,
         name="show_edit.html",
-        context={"mode": "edit", "row": row, "prefectures": prefectures},
+        context={
+            "mode": "edit",
+            "row": row,
+            "prefectures": prefectures,
+            **_show_list_context([], start_date, end_date, prefucture, favorite_only),
+        },
     )
 
 
@@ -227,7 +301,13 @@ def show_update(
     venues: str | None = Form(None),
     starttime: str | None = Form(None),
     memo: str | None = Form(None),
+    favorite: bool = Form(False),
+    filter_start_date: str = Form(""),
+    filter_end_date: str = Form(""),
+    filter_prefucture: str = Form(""),
+    filter_favorite_only: bool = Form(False),
 ):
+    ensure_restored("show_info")
     with engine.begin() as conn:
         result = conn.execute(
             text("""
@@ -238,7 +318,8 @@ def show_update(
                     venues = :venues,
                     starttime = :starttime,
                     memo = :memo,
-                    url = :url
+                    url = :url,
+                    favorite = :favorite
                 WHERE id = :id
             """),
             {
@@ -250,17 +331,31 @@ def show_update(
                 "starttime": starttime or None,
                 "memo": memo or None,
                 "url": url,
+                "favorite": int(favorite),
             },
         )
 
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Show not found")
 
-    return RedirectResponse(url="/shows", status_code=303)
+    write_table_snapshot("show_info")
+    return RedirectResponse(
+        url=_show_list_url(
+            filter_start_date, filter_end_date, filter_prefucture, filter_favorite_only
+        ),
+        status_code=303,
+    )
 
 
 @router.post("/shows/delete/{id}")
-def show_delete(id: int):
+def show_delete(
+    id: int,
+    filter_start_date: str = Form(""),
+    filter_end_date: str = Form(""),
+    filter_prefucture: str = Form(""),
+    filter_favorite_only: bool = Form(False),
+):
+    ensure_restored("show_info")
     with engine.begin() as conn:
         result = conn.execute(
             text("DELETE FROM show_info WHERE id = :id"),
@@ -270,4 +365,10 @@ def show_delete(id: int):
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Show not found")
 
-    return RedirectResponse(url="/shows", status_code=303)
+    write_table_snapshot("show_info")
+    return RedirectResponse(
+        url=_show_list_url(
+            filter_start_date, filter_end_date, filter_prefucture, filter_favorite_only
+        ),
+        status_code=303,
+    )

@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from app.db.engine import engine
+from app.db.sql_snapshots import ensure_restored, write_table_snapshot
 
 router = APIRouter()
 
@@ -26,6 +27,7 @@ def _get_prefectures(conn):
 
 @router.get("/venues")
 def venue_list(request: Request):
+    ensure_restored("prefucture_mst", "common_venues")
     with engine.connect() as conn:
         rows = conn.execute(
             text("""
@@ -50,6 +52,7 @@ def venue_list(request: Request):
 
 @router.get("/venues/new")
 def venue_new(request: Request):
+    ensure_restored("prefucture_mst", "common_venues")
     with engine.connect() as conn:
         prefectures = _get_prefectures(conn)
 
@@ -65,6 +68,7 @@ def venue_create(
     code: int = Form(...),
     venue: str = Form(...),
 ):
+    ensure_restored("prefucture_mst", "common_venues")
     with engine.begin() as conn:
         if conn.execute(
             text("SELECT 1 FROM prefucture_mst WHERE code = :code"),
@@ -80,11 +84,13 @@ def venue_create(
             {"code": code, "venue": venue},
         )
 
+    write_table_snapshot("common_venues")
     return RedirectResponse(url="/venues", status_code=303)
 
 
 @router.get("/venues/{id}")
 def venue_edit(request: Request, id: int):
+    ensure_restored("prefucture_mst", "common_venues")
     with engine.connect() as conn:
         row = conn.execute(
             text("""
@@ -116,6 +122,7 @@ def venue_update(
     code: int = Form(...),
     venue: str = Form(...),
 ):
+    ensure_restored("prefucture_mst", "common_venues")
     with engine.begin() as conn:
         if conn.execute(
             text("SELECT 1 FROM prefucture_mst WHERE code = :code"),
@@ -135,11 +142,13 @@ def venue_update(
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Venue not found")
 
+    write_table_snapshot("common_venues")
     return RedirectResponse(url="/venues", status_code=303)
 
 
 @router.post("/venues/delete/{id}")
 def venue_delete(id: int):
+    ensure_restored("prefucture_mst", "common_venues")
     with engine.begin() as conn:
         result = conn.execute(
             text("DELETE FROM common_venues WHERE id = :id"),
@@ -149,4 +158,5 @@ def venue_delete(id: int):
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Venue not found")
 
+    write_table_snapshot("common_venues")
     return RedirectResponse(url="/venues", status_code=303)

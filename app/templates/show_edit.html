@@ -8,10 +8,20 @@
 {% endif %}
 
 <div class="mb-3">
-    <a class="btn btn-outline-secondary" href="/shows">一覧へ戻る</a>
+    <form method="get" action="/shows" style="display:inline;">
+        <input type="hidden" name="start_date" value="{{ start_date }}">
+        <input type="hidden" name="end_date" value="{{ end_date }}">
+        <input type="hidden" name="prefucture" value="{{ prefucture }}">
+        <input type="hidden" name="favorite_only" value="{{ 1 if favorite_only else 0 }}">
+        <button class="btn btn-outline-secondary" type="submit">一覧へ戻る</button>
+    </form>
     <button class="btn btn-primary" type="submit" form="show-edit-form">保存</button>
     {% if mode == "edit" %}
     <form method="post" action="/shows/delete/{{ row.id }}" style="display:inline;">
+        <input type="hidden" name="filter_start_date" value="{{ start_date }}">
+        <input type="hidden" name="filter_end_date" value="{{ end_date }}">
+        <input type="hidden" name="filter_prefucture" value="{{ prefucture }}">
+<input type="hidden" name="filter_favorite_only" value="{{ 1 if favorite_only else 0 }}">
         <button type="submit" class="btn btn-danger"
             onclick="return confirm('削除します。よろしいですか？');">削除</button>
     </form>
@@ -24,14 +34,24 @@
     <form id="show-edit-form" method="post" action="/shows/update/{{ row.id }}">
 {% endif %}
 
-<div class="mb-3">
-    <label class="form-label" for="showdate">公演日</label>
+<input type="hidden" name="filter_start_date" value="{{ start_date }}">
+<input type="hidden" name="filter_end_date" value="{{ end_date }}">
+<input type="hidden" name="filter_prefucture" value="{{ prefucture }}">
+<input type="hidden" name="filter_favorite_only" value="{{ 1 if favorite_only else 0 }}">
+
+<div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
+    <label class="form-label mb-0" for="showdate">公演日</label>
     <input class="form-control show-date show-edit-date" id="showdate" type="date" name="showdate"
         value="{{ row.showdate.replace('/', '-') if mode == 'edit' else '' }}" required>
+    <label class="form-check-label d-flex align-items-center gap-1" for="favorite">
+        <span aria-hidden="true">&#9734;</span>
+        <input class="form-check-input m-0" id="favorite" type="checkbox" name="favorite" value="1"
+            {% if mode == 'edit' and row.favorite %}checked{% endif %}>
+    </label>
 </div>
 
-<div class="mb-3">
-    <label class="form-label" for="prefucture">都道府県</label>
+<div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
+    <label class="form-label mb-0" for="prefucture">都道府県</label>
     <select class="form-select show-prefecture show-edit-prefecture" id="prefucture" name="prefucture">
         <option value="">選択してください</option>
         {% for prefecture in prefectures %}
@@ -55,8 +75,8 @@
         value="{{ row.venues if mode == 'edit' and row.venues else '' }}">
 </div>
 
-<div class="mb-3">
-    <label class="form-label" for="starttime">開始時間</label>
+<div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
+    <label class="form-label mb-0" for="starttime">開始時間</label>
     <input class="form-control show-edit-starttime" id="starttime" type="text" name="starttime"
         value="{{ row.starttime if mode == 'edit' and row.starttime else '' }}">
 </div>
