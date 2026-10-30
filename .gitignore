@@ -2,6 +2,6 @@
 __pycache__/
 **/__pycache__/
 *.py[cod]
-# data.db is intentionally committed to a private repo as the initial Render seed.
+# Legacy SQLite copy retained as an archive; the app now requires PostgreSQL.
 app.db
 .env

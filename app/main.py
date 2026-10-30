@@ -9,14 +9,8 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.routers import menu, show_info, url_master, venue_master
-from app.db.sql_snapshots import initialize_sql_snapshots
 
 app = FastAPI()
-
-
-@app.on_event("startup")
-def initialize_database_snapshots():
-    initialize_sql_snapshots()
 
 APP_ENV = os.getenv("APP_ENV", "development").lower()
 APP_USERNAME = os.getenv("APP_USERNAME", "")

@@ -8,7 +8,6 @@ from sqlalchemy import text
 
 from .crawler import get_data
 from .db.engine import engine as database_engine
-from .db.sql_snapshots import ensure_restored, write_crawl_snapshot, write_table_snapshot
 from .output import EVENT_COLUMNS, _merge_events
 from .venue_master import _venue_master
 
@@ -18,7 +17,7 @@ def load_sites():
         rows = conn.execute(text("""
             SELECT name, url
             FROM url_masters
-            WHERE enabled = 1
+            WHERE enabled = TRUE
             ORDER BY id
         """)).fetchall()
 
@@ -38,7 +37,6 @@ def load_sites():
 
 
 def run_pipeline():
-    ensure_restored("url_masters", "prefucture_mst", "common_venues", "show_info")
     sites = load_sites()
     if not sites:
         raise ValueError("有効なURLマスタがありません")
@@ -159,18 +157,9 @@ def run_pipeline():
             )
 
         conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS app_state (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )
-        """))
-        conn.execute(text("""
             INSERT INTO app_state (key, value) VALUES ('last_crawl_at', :value)
             ON CONFLICT(key) DO UPDATE SET value = excluded.value
         """), {"value": datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y/%m/%d %H:%M:%S")})
-
-    write_table_snapshot("show_info")
-    write_crawl_snapshot()
 
     result = {
         "取得公演数": len(events),

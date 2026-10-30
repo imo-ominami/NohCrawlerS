@@ -5,7 +5,7 @@ services:
     region: singapore
     plan: 0.5c-512mb
     buildCommand: pip install -r requirements.txt
-    startCommand: alembic upgrade head && python -m app.db.migrate_sqlite_to_postgres && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     disk:
       name: noh-crawler-data
@@ -22,7 +22,3 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
-      - key: SQL_SNAPSHOT_DIR
-        value: /var/data/sql_snapshots
-      - key: SQLITE_SOURCE_PATH
-        value: /var/data/data.db

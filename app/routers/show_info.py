@@ -7,7 +7,6 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from app.db.engine import engine
-from app.db.sql_snapshots import ensure_restored, write_table_snapshot
 
 router = APIRouter()
 
@@ -30,7 +29,6 @@ def _display_search_date(value):
 
 
 def _show_rows(start_date, end_date, prefucture, favorite_only=False):
-    ensure_restored("show_info")
     try:
         from_date = date.fromisoformat(start_date.replace("/", "-")) if start_date else None
         to_date = date.fromisoformat(end_date.replace("/", "-")) if end_date else None
@@ -47,7 +45,6 @@ def _show_rows(start_date, end_date, prefucture, favorite_only=False):
         )
 
     if prefucture:
-        ensure_restored("prefucture_mst")
         with engine.connect() as conn:
             valid_prefectures = {row.prefucture for row in _get_prefectures(conn)}
         if prefucture not in valid_prefectures:
@@ -134,7 +131,6 @@ async def save_show_favorites(request: Request):
     if not isinstance(favorites, list):
         raise HTTPException(status_code=400, detail="Invalid favorite data")
 
-    ensure_restored("show_info")
     with engine.begin() as conn:
         for item in favorites:
             if not isinstance(item, dict):
@@ -148,7 +144,6 @@ async def save_show_favorites(request: Request):
                 {"id": show_id, "favorite": int(bool(item.get("favorite")))},
             )
 
-    write_table_snapshot("show_info")
     return {"saved": len(favorites)}
 
 
@@ -163,7 +158,6 @@ def show_search(
     try:
         rows = _show_rows(start_date or None, end_date or None, prefucture or None, favorite_only)
     except HTTPException as error:
-        ensure_restored("prefucture_mst")
         with engine.connect() as conn:
             prefectures = _get_prefectures(conn)
         return templates.TemplateResponse(
@@ -181,7 +175,6 @@ def show_search(
         )
 
     if not rows:
-        ensure_restored("prefucture_mst")
         with engine.connect() as conn:
             prefectures = _get_prefectures(conn)
         return templates.TemplateResponse(
@@ -207,7 +200,6 @@ def show_search(
 
 @router.get("/shows/new")
 def show_new(request: Request):
-    ensure_restored("prefucture_mst")
     with engine.connect() as conn:
         prefectures = _get_prefectures(conn)
 
@@ -229,7 +221,6 @@ def show_create(
     memo: str | None = Form(None),
     favorite: bool = Form(False),
 ):
-    ensure_restored("show_info")
     with engine.begin() as conn:
         conn.execute(
             text("""
@@ -250,7 +241,6 @@ def show_create(
             },
         )
 
-    write_table_snapshot("show_info")
     return RedirectResponse(url="/shows", status_code=303)
 
 
@@ -263,8 +253,6 @@ def show_edit(
     prefucture: str | None = Query(None),
     favorite_only: bool = Query(False),
 ):
-    ensure_restored("show_info")
-    ensure_restored("prefucture_mst")
     with engine.connect() as conn:
         row = conn.execute(
             text("""
@@ -307,7 +295,6 @@ def show_update(
     filter_prefucture: str = Form(""),
     filter_favorite_only: bool = Form(False),
 ):
-    ensure_restored("show_info")
     with engine.begin() as conn:
         result = conn.execute(
             text("""
@@ -338,7 +325,6 @@ def show_update(
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Show not found")
 
-    write_table_snapshot("show_info")
     return RedirectResponse(
         url=_show_list_url(
             filter_start_date, filter_end_date, filter_prefucture, filter_favorite_only
@@ -355,7 +341,6 @@ def show_delete(
     filter_prefucture: str = Form(""),
     filter_favorite_only: bool = Form(False),
 ):
-    ensure_restored("show_info")
     with engine.begin() as conn:
         result = conn.execute(
             text("DELETE FROM show_info WHERE id = :id"),
@@ -365,7 +350,6 @@ def show_delete(
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Show not found")
 
-    write_table_snapshot("show_info")
     return RedirectResponse(
         url=_show_list_url(
             filter_start_date, filter_end_date, filter_prefucture, filter_favorite_only

@@ -6,7 +6,6 @@ from fastapi import Form
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 from app.db.engine import engine
-from app.db.sql_snapshots import ensure_restored, write_table_snapshot
 
 router = APIRouter()
 
@@ -15,8 +14,6 @@ templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 
 @router.get("/urls")
 def url_list(request: Request):
-    ensure_restored("url_masters")
-
     with engine.connect() as conn:
 
         result = conn.execute(
@@ -60,8 +57,6 @@ def url_create(
 ):
 
     enabled_value = bool(enabled)
-    ensure_restored("url_masters")
-
     with engine.begin() as conn:
 
         conn.execute(
@@ -86,7 +81,6 @@ def url_create(
             }
         )
 
-    write_table_snapshot("url_masters")
     return RedirectResponse(
         url="/urls",
         status_code=303
@@ -97,8 +91,6 @@ def url_edit(
     request: Request,
     id: int
 ):
-    ensure_restored("url_masters")
-
     with engine.connect() as conn:
 
         row = conn.execute(
@@ -132,8 +124,6 @@ def url_update(
 ):
 
     enabled_value = bool(enabled)
-    ensure_restored("url_masters")
-
     with engine.begin() as conn:
 
         conn.execute(
@@ -153,7 +143,6 @@ def url_update(
             }
         )
 
-    write_table_snapshot("url_masters")
     return RedirectResponse(
         url="/urls",
         status_code=303
@@ -161,8 +150,6 @@ def url_update(
 
 @router.post("/urls/delete/{id}")
 def url_delete(id: int):
-    ensure_restored("url_masters")
-
     with engine.begin() as conn:
 
         conn.execute(
@@ -174,7 +161,6 @@ def url_delete(id: int):
             {"id": id}
         )
 
-    write_table_snapshot("url_masters")
     return RedirectResponse(
         url="/urls",
         status_code=303

@@ -10,7 +10,6 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from app.db.engine import engine
-from app.db.sql_snapshots import restore_empty_tables
 
 router = APIRouter()
 
@@ -23,13 +22,6 @@ _used_crawl_tokens = {}
 
 def _menu_context(**context):
     with engine.begin() as conn:
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS app_state (
-                key TEXT PRIMARY KEY,
-                value TEXT NOT NULL
-            )
-        """))
-        restore_empty_tables(conn, ("prefucture_mst", "app_state"))
         prefectures = conn.execute(text("""
             SELECT prefucture
             FROM prefucture_mst
