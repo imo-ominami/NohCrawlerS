@@ -59,10 +59,10 @@ def _show_rows(start_date, end_date, prefucture, favorite_only=False):
     filters = []
     params = {}
     if from_date:
-        filters.append("date(replace(showdate, '/', '-')) >= :start_date")
+        filters.append("replace(showdate, '/', '-') >= :start_date")
         params["start_date"] = from_date.isoformat()
     if to_date:
-        filters.append("date(replace(showdate, '/', '-')) <= :end_date")
+        filters.append("replace(showdate, '/', '-') <= :end_date")
         params["end_date"] = to_date.isoformat()
     if prefucture:
         filters.append("prefucture = :prefucture")
@@ -77,7 +77,7 @@ def _show_rows(start_date, end_date, prefucture, favorite_only=False):
                 SELECT id, showdate, prefucture, showname, venues, starttime, url, favorite, new
                 FROM show_info
                 {where_clause}
-                ORDER BY date(replace(showdate, '-', '/')), id 
+                ORDER BY replace(showdate, '/', '-'), id
             """),
             params,
         ).fetchall()

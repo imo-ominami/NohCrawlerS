@@ -7,8 +7,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-from alembic import command
-from alembic.config import Config
 
 from app.routers import menu, show_info, url_master, venue_master
 from app.db.sql_snapshots import initialize_sql_snapshots
@@ -17,10 +15,7 @@ app = FastAPI()
 
 
 @app.on_event("startup")
-def create_initial_sql_snapshots():
-    project_root = Path(__file__).resolve().parents[1]
-    alembic_config = Config(str(project_root / "alembic.ini"))
-    command.upgrade(alembic_config, "head")
+def initialize_database_snapshots():
     initialize_sql_snapshots()
 
 APP_ENV = os.getenv("APP_ENV", "development").lower()

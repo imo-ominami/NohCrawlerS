@@ -169,8 +169,8 @@ def run_pipeline():
             ON CONFLICT(key) DO UPDATE SET value = excluded.value
         """), {"value": datetime.now(ZoneInfo("Asia/Tokyo")).strftime("%Y/%m/%d %H:%M:%S")})
 
-    write_crawl_snapshot()
     write_table_snapshot("show_info")
+    write_crawl_snapshot()
 
     result = {
         "取得公演数": len(events),

@@ -1,5 +1,6 @@
 from pathlib import Path
 from threading import Lock
+from time import monotonic
 from urllib.parse import urlencode
 from uuid import uuid4
 
@@ -16,7 +17,8 @@ router = APIRouter()
 APP_DIR = Path(__file__).resolve().parents[1]
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 _crawl_lock = Lock()
-_used_crawl_tokens = set()
+_CRAWL_TOKEN_TTL_SECONDS = 10 * 60
+_used_crawl_tokens = {}
 
 
 def _menu_context(**context):
@@ -89,12 +91,20 @@ def crawl_site_information(
         }.items() if value
     }
     with _crawl_lock:
+        now = monotonic()
+        expired_tokens = [
+            token for token, expires_at in _used_crawl_tokens.items()
+            if expires_at <= now
+        ]
+        for token in expired_tokens:
+            del _used_crawl_tokens[token]
+
         if crawl_token in _used_crawl_tokens:
             return RedirectResponse(
                 url=f"/?{urlencode(search_params)}" if search_params else "/",
                 status_code=303,
             )
-        _used_crawl_tokens.add(crawl_token)
+        _used_crawl_tokens[crawl_token] = now + _CRAWL_TOKEN_TTL_SECONDS
 
     from app.getnohinfo import run_pipeline
 

@@ -1,24 +1,34 @@
-# Render deployment with SQLite
+# Render deployment with PostgreSQL
 
-Render runs one shared FastAPI app and stores its SQLite database on an attached persistent disk. Users access the app in a browser; their devices do not need Python or a virtual environment.
+The web service uses the Render PostgreSQL database resource named `nohS-db`. Render supplies its connection string to the app as `DATABASE_URL`. The attached disk keeps the existing SQLite database available during the one-time data import and stores the app's SQL snapshot files.
 
-## Before deploying
+## Existing service requirements
 
-1. Create a **private** Git repository from this `Smartphone` folder. The current `data.db` is intentionally included so the first Render startup can seed the persistent disk with the existing data. Keep this repository private.
-2. Connect the repository to Render and create a Blueprint using `render.yaml`.
-3. When prompted, choose an `APP_USERNAME` and a strong `APP_PASSWORD`. Keep these values out of Git.
-4. Wait for the first deploy. On first startup, the app copies `data.db` to `/var/data/data.db`, then Alembic applies any pending migrations. Later deploys use the copy on the persistent disk and preserve its contents.
-5. Open the service's `onrender.com` URL and sign in with the shared credentials.
+The Render workspace must contain a PostgreSQL resource named `nohS-db`. The web service and database must be in the same region so Render can use the private connection string.
 
-## Render configuration
+Set `APP_USERNAME` and `APP_PASSWORD` in Render. Keep these credentials out of Git.
 
-- Build: `pip install -r requirements.txt`
-- Start: `alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-- Health check: `/health`
-- SQLite file: `/var/data/data.db` on the attached persistent disk
+## Deployment and initial data import
 
-The Blueprint uses Render's smallest paid web plan and a 1 GB disk. At current listed rates, that is about **$7.25/month** before taxes or other usage: $7/month for compute plus $0.25/GB/month for disk. Check [Render pricing](https://render.com/pricing) before deploying.
+The start command applies Alembic migrations, copies data from `/var/data/data.db` into PostgreSQL, then starts FastAPI. If the attached disk does not yet contain that file, the importer falls back to the repository's `data.db`. The import runs only when a SQLite source exists and the PostgreSQL application tables are empty. Later restarts skip the import once PostgreSQL contains application data.
 
-The disk belongs to one service instance; this deployment is configured for a single instance. SQLite allows many readers but serializes writes, so this is appropriate for a small group with light editing. Keep periodic copies of `data.db` as backups. Render disks persist across deploys and restarts, but do not replace backups.
+If PostgreSQL already contains application data, the importer leaves it untouched and logs that it skipped the import. It does not merge two populated databases.
 
-Production uses HTTP Basic authentication with one shared account. Render provides HTTPS for web services. Share the credentials only with intended users.
+## Local development
+
+Without `DATABASE_URL`, local development continues to use `data.db`. To run locally against PostgreSQL, set `DATABASE_URL` to the PostgreSQL connection string before starting the app. Do not commit credentials.
+
+To run the data import manually after applying migrations:
+
+```powershell
+$env:DATABASE_URL = "postgresql://..."
+$env:SQLITE_SOURCE_PATH = "C:\path\to\data.db"
+alembic upgrade head
+python -m app.db.migrate_sqlite_to_postgres
+```
+
+The importer adjusts PostgreSQL sequences after copying explicit SQLite IDs.
+
+## Backups
+
+The app writes its table-level SQL snapshots to `/var/data/sql_snapshots`. These snapshots are useful for restoring application tables, but they are not a complete PostgreSQL backup. Use Render PostgreSQL backups or `pg_dump` for full database backups, and periodically verify a restore.

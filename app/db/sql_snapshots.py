@@ -2,12 +2,11 @@
 from datetime import datetime
 import os
 from pathlib import Path
-import sqlite3
 import tempfile
 
 from sqlalchemy import inspect, text
 
-from app.db.engine import engine, resolve_database_path
+from app.db.engine import PROJECT_ROOT, engine, resolve_database_path, resolve_database_url
 
 
 TABLE_COLUMNS = {
@@ -30,7 +29,12 @@ SNAPSHOT_FILES = {
 
 
 def _snapshot_dir() -> Path:
-    return resolve_database_path().parent / "sql_snapshots"
+    configured_directory = os.getenv("SQL_SNAPSHOT_DIR")
+    if configured_directory:
+        return Path(configured_directory)
+    if resolve_database_url().get_backend_name() == "sqlite":
+        return resolve_database_path().parent / "sql_snapshots"
+    return PROJECT_ROOT / "sql_snapshots"
 
 
 def _quote_identifier(identifier: str) -> str:
@@ -45,7 +49,7 @@ def _sql_literal(value) -> str:
     if value is None:
         return "NULL"
     if isinstance(value, bool):
-        return "1" if value else "0"
+        return "TRUE" if value else "FALSE"
     if isinstance(value, int):
         return str(value)
     if isinstance(value, float):
@@ -69,13 +73,47 @@ def _table_sql(table: str, rows) -> str:
     return "\n".join(statements)
 
 
+def _sql_statements(sql_text: str):
+    """Split generated SQL on semicolons outside quoted values and identifiers."""
+    statement = []
+    in_string = False
+    in_identifier = False
+    index = 0
+    while index < len(sql_text):
+        character = sql_text[index]
+        statement.append(character)
+        if in_string and character == "'":
+            if index + 1 < len(sql_text) and sql_text[index + 1] == "'":
+                index += 1
+                statement.append(sql_text[index])
+            else:
+                in_string = False
+        elif in_identifier and character == '"':
+            if index + 1 < len(sql_text) and sql_text[index + 1] == '"':
+                index += 1
+                statement.append(sql_text[index])
+            else:
+                in_identifier = False
+        elif not in_string and not in_identifier:
+            if character == "'":
+                in_string = True
+            elif character == '"':
+                in_identifier = True
+            elif character == ";":
+                yield "".join(statement).strip()
+                statement = []
+        index += 1
+    if "".join(statement).strip():
+        raise ValueError("Incomplete SQL snapshot statement")
+
+
 def write_table_snapshot(table: str) -> Path:
     tables = ("prefucture_mst", "common_venues") if table == "common_venues" else (table,)
     return _write_snapshot(tables, SNAPSHOT_FILES[table])
 
 
 def write_crawl_snapshot() -> Path:
-    return _write_snapshot(("show_info", "app_state"), "crawl_data.sql")
+    return _write_snapshot(("app_state",), "crawl_data.sql")
 
 
 def _write_snapshot(tables, filename: str) -> Path:
@@ -133,17 +171,8 @@ def restore_empty_tables(conn, tables) -> set[str]:
         if marker_start not in sql_text or marker_end not in sql_text:
             continue
         block = sql_text.split(marker_start, 1)[1].split(marker_end, 1)[0]
-        statement_lines = []
-        for line in block.splitlines():
-            if line.lstrip().startswith("--"):
-                continue
-            statement_lines.append(line)
-            candidate = "\n".join(statement_lines)
-            if sqlite3.complete_statement(candidate):
-                conn.exec_driver_sql(candidate)
-                statement_lines = []
-        if any(line.strip() for line in statement_lines):
-            raise ValueError(f"Incomplete SQL snapshot for table {table}")
+        for statement in _sql_statements(block):
+            conn.exec_driver_sql(statement)
         restored.add(table)
     return restored
 
@@ -160,9 +189,7 @@ def initialize_sql_snapshots() -> None:
     for table in ("url_masters", "common_venues", "show_info"):
         if not inspector.has_table(table):
             continue
-        snapshot_path = _snapshot_dir() / SNAPSHOT_FILES[table]
-        if not snapshot_path.exists():
-            write_table_snapshot(table)
+        write_table_snapshot(table)
 
     if inspector.has_table("show_info"):
         with engine.begin() as conn:
@@ -172,6 +199,6 @@ def initialize_sql_snapshots() -> None:
                     value TEXT NOT NULL
                 )
             """))
-        crawl_snapshot = _snapshot_dir() / "crawl_data.sql"
-        if not crawl_snapshot.exists():
-            write_crawl_snapshot()
+    if inspect(engine).has_table("app_state"):
+        # Rewrite older combined snapshots so show_info data is kept only in show_info.sql.
+        write_crawl_snapshot()
