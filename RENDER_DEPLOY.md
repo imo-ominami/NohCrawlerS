@@ -1,10 +1,10 @@
 # Render deployment with PostgreSQL
 
-The web service uses the Render PostgreSQL database resource named `nohS-db`. Render supplies its connection string to the app as `DATABASE_URL`. The attached disk keeps the existing SQLite database available during the one-time data import and stores the app's SQL snapshot files.
+The web service connects to the Render PostgreSQL database `nohS-db` using `DATABASE_URL`. Set this variable in the Render Dashboard; it is intentionally not stored in this repository. The attached disk keeps the existing SQLite database available during the one-time data import and stores the app's SQL snapshot files.
 
 ## Existing service requirements
 
-The Render workspace must contain a PostgreSQL resource named `nohS-db`. The web service and database must be in the same region so Render can use the private connection string.
+The Render workspace must contain the PostgreSQL database `nohS-db`. Use its Internal Database URL if the web service and database are in the same region. Otherwise use its External Database URL with `sslmode=require`.
 
 Set `APP_USERNAME` and `APP_PASSWORD` in Render. Keep these credentials out of Git.
 

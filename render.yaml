@@ -21,9 +21,7 @@ services:
       - key: APP_PASSWORD
         sync: false
       - key: DATABASE_URL
-        fromDatabase:
-          name: nohS-db
-          property: connectionString
+        sync: false
       - key: SQL_SNAPSHOT_DIR
         value: /var/data/sql_snapshots
       - key: SQLITE_SOURCE_PATH
