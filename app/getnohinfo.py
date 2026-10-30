@@ -9,7 +9,6 @@ from sqlalchemy import text
 from .crawler import get_data
 from .db.engine import engine as database_engine
 from .output import EVENT_COLUMNS, _merge_events
-from .venue_master import _venue_master
 
 def load_sites():
     """有効なURLマスタから巡回先を読み込む。"""
@@ -100,7 +99,6 @@ def run_pipeline():
             FROM show_info
             ORDER BY id
         """)).fetchall()
-        venue_master = _venue_master(conn)
         registered_events = pd.DataFrame(
             [
                 {
@@ -116,7 +114,7 @@ def run_pipeline():
             ],
             columns=EVENT_COLUMNS,
         )
-        merged_events = _merge_events(registered_events, venue_master)
+        merged_events = _merge_events(registered_events, conn=conn)
 
         conn.execute(text("DELETE FROM show_info"))
         merged_rows = [

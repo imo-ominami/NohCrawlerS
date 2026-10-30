@@ -8,7 +8,7 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-from .venue_master import convert_venue, get_prefecture
+from .venue_master import get_prefecture
 
 REQUEST_HEADERS = {"User-Agent": "Mozilla/5.0"}
 REQUEST_TIMEOUT = 30
@@ -52,7 +52,7 @@ def _event(source, collected_at, **values):
         "公演日": values.get("公演日", ""),
         "都道府県": values.get("都道府県", ""),
         "公演名": values.get("公演名", ""),
-        "会場": convert_venue(values.get("会場", "")),
+        "会場": values.get("会場", ""),
         "開演時間": values.get("開演時間", ""),
         "備考": values.get("備考", ""),
         "公演ID": values.get("公演ID", ""),
@@ -83,7 +83,7 @@ def _coocan_details(table):
                     values.setdefault(field, cells[index + 1].get_text(" ", strip=True))
 
     venue = values.get("会場", "")
-    venue = re.sub(r"\s*[（(][^）)]*[）)]\s*$", "", venue).strip()
+    venue = venue.strip()
     remarks = ""
     if not venue or not values.get("開演時間"):
         rows = table.find_all("tr", recursive=False)
@@ -93,7 +93,7 @@ def _coocan_details(table):
             first_cell = following.find("tr").find(["td", "th"]) if following and following.find("tr") else None
             if first_cell:
                 remarks = " ".join(first_cell.get_text(" ", strip=True).split())
-    return convert_venue(venue), _start_time(values.get("開演時間", "")), remarks
+    return venue, _start_time(values.get("開演時間", "")), remarks
 
 
 def _crawl_coocan(source, collected_at):
@@ -193,10 +193,10 @@ def _crawl_structured_events(source, collected_at):
             region, venue = _schema_location(event)
             start_date = str(event.get("startDate", ""))
             time_match = re.search(r"T([0-2]?\d:[0-5]\d)", start_date)
-            venue = convert_venue(str(venue or ""))
+            venue = str(venue or "").strip()
             prefecture = str(region or "").strip()
             if not prefecture.endswith(("県", "都", "府", "道")):
-                prefecture = get_prefecture(f"{name} {venue}")
+                prefecture = get_prefecture(f"{name} {venue}", {})
             results.append(_event(
                 source, collected_at, 公演日=date,
                 都道府県=prefecture,
@@ -255,7 +255,7 @@ def _crawl_the_noh_month(url, source, collected_at):
                     event_id = f"{event_id}-{event_index}"
                 results.append(_event(
                     source, collected_at, 公演日=event_date,
-                    都道府県=get_prefecture(f"{name} {venue}"),
+                    都道府県=get_prefecture(f"{name} {venue}", {}),
                     公演名=name, 会場=venue, 開演時間=start_time,
                     公演ID=event_id, 掲載URL=event_links[0] if event_links else response.url,
                 ))

@@ -33,18 +33,13 @@ def _venue_master(conn=None):
         return _load_venue_master(connection)
 
 
-def convert_venue(name, master=None):
-    """会場名を会場マスターの表記に合わせる。マスターにない名前はそのまま返す。"""
-    value = str(name or "").strip()
-    normalized = _normalize(value)
-    master = _venue_master() if master is None else master
-    matched = master.get(normalized)
-    if matched:
-        return matched[0]
+def find_venue(name, master):
+    """Text containing a known venue returns the venue's master name."""
+    normalized = _normalize(name)
     for venue_key, (venue, _) in sorted(master.items(), key=lambda item: len(item[0]), reverse=True):
         if venue_key and venue_key in normalized:
             return venue
-    return value
+    return ""
 
 
 def get_prefecture(name, master=None):

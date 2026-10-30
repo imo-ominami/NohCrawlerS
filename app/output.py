@@ -4,7 +4,7 @@ from difflib import SequenceMatcher
 
 import pandas as pd
 
-from .venue_master import _venue_master, convert_venue, get_prefecture
+from .venue_master import _venue_master, find_venue, get_prefecture
 
 EVENT_COLUMNS = [
     "取得経路", "サイト名", "公演日", "都道府県", "公演名", "会場",
@@ -19,17 +19,30 @@ def _normalize_title(title):
     return re.sub(r"[\W_]+", "", value, flags=re.UNICODE)
 
 
-def _merge_events(events, venue_master=None):
-    venue_master = _venue_master() if venue_master is None else venue_master
+def _merge_events(events, venue_master=None, conn=None):
+    records = events.to_dict("records")
+    needs_venue_lookup = any(
+        (
+            not str(event.get("都道府県", "") or "").strip()
+            and str(event.get("会場", "") or "").strip()
+        )
+        or (
+            not str(event.get("会場", "") or "").strip()
+            and str(event.get("備考", "") or "").strip()
+        )
+        for event in records
+    )
+    if venue_master is None:
+        venue_master = _venue_master(conn) if needs_venue_lookup else {}
     groups = {}
-    for event in events.to_dict("records"):
+    for event in records:
+        if not str(event.get("会場", "") or "").strip() and str(event.get("備考", "") or "").strip():
+            event["会場"] = find_venue(event["備考"], venue_master)
         title = str(event.get("公演名", "")).strip()
         prefecture = str(event.get("都道府県", "") or "").strip()
-        if not prefecture:
-            prefecture = get_prefecture(
-                f"{title} {event.get('会場', '')} {event.get('掲載URL', '')}",
-                venue_master,
-            )
+        venue = str(event.get("会場", "") or "").strip()
+        if not prefecture and venue:
+            prefecture = get_prefecture(venue, venue_master)
         event["都道府県"] = prefecture
         normalized = _normalize_title(title)
         if not normalized:
@@ -55,17 +68,10 @@ def _merge_events(events, venue_master=None):
                     str(item.get(key, "")).strip()
                     for item in entries if pd.notna(item.get(key)) and str(item.get(key, "")).strip()
                 ))
-            venues = [
-                convert_venue(value, venue_master)
-                for value in unique_values("会場")
-            ]
+            venues = unique_values("会場")
             times = unique_values("開演時間")
             remarks = unique_values("備考")
             for remark in remarks:
-                if not venues:
-                    venue = convert_venue(remark, venue_master)
-                    if venue != remark:
-                        venues.append(venue)
                 if not times:
                     match = re.search(r"(?:開演(?:時間)?|開始時間)?\s*([0-2]?\d)(?::([0-5]\d)|時(半)?)", remark)
                     if match:
