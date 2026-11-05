@@ -11,7 +11,9 @@
         <input type="hidden" name="favorite_only" value="{{ 1 if favorite_only else 0 }}">
         <button type="submit" class="btn btn-outline-secondary">メニューへ戻る</button>
     </form>
+    {% if request.state.current_user.role == 'admin' %}
     <a class="btn btn-primary" href="/shows/new">新規登録</a>
+    {% endif %}
 </p>
 
 <div class="table-responsive">
@@ -25,20 +27,28 @@
             <th class="show-venue">会場</th>
             <th class="show-starttime">開始時間</th>
             <th class="show-url">URL</th>
+            {% if request.state.current_user.role == 'admin' %}
             <th class="show-edit">編集</th>
+            {% endif %}
         </tr>
     </thead>
     <tbody>
         {% for row in rows %}
         <tr>
-            <td class="show-favorite"><input type="checkbox" class="favorite-checkbox" data-show-id="{{ row.id }}" aria-label="&#9734; Favorite" {% if row.favorite %}checked{% endif %}></td>
+            <td class="show-favorite">
+                {% if request.state.current_user.role == 'admin' %}
+                <input type="checkbox" class="favorite-checkbox" data-show-id="{{ row.id }}" aria-label="&#9734; Favorite" {% if row.favorite %}checked{% endif %}>
+                {% elif row.favorite %}&#9733;{% else %}&#9734;{% endif %}
+            </td>
             <td class="show-date">{{ row.showdate[2:4] }}/{{ row.showdate[5:7] }}/{{ row.showdate[8:10] }}</td>
             <td class="show-prefecture">{{ row.prefucture or '' }}</td>
             <td class="show-name">{{ row.showname }}{% if row.new %} <span style="color: red;">new</span>{% endif %}</td>
             <td class="show-venue">{{ row.venues or '' }}</td>
             <td class="show-starttime">{{ row.starttime or '' }}</td>
             <td class="show-url"><a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.url }}</a></td>
+            {% if request.state.current_user.role == 'admin' %}
             <td class="show-edit"><a href="/shows/{{ row.id }}?start_date={{ start_date|urlencode }}&amp;end_date={{ end_date|urlencode }}&amp;prefucture={{ prefucture|urlencode }}&amp;favorite_only={{ 1 if favorite_only else 0 }}">編集</a></td>
+            {% endif %}
         </tr>
         {% endfor %}
     </tbody>

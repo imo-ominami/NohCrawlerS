@@ -1,6 +1,6 @@
 # Render deployment with PostgreSQL
 
-The web service connects to the Render PostgreSQL database `nohS-db` using `DATABASE_URL`. Set this variable in the Render Dashboard; credentials are not stored in this repository.
+The web service connects to the Render PostgreSQL database `nohS-db` using `DATABASE_URL`. Set this variable in the Render Dashboard; credentials are not stored in this repository. Set `SESSION_SECRET` to a long, random secret for signed login cookies.
 
 ## Render configuration
 
@@ -9,7 +9,7 @@ The web service connects to the Render PostgreSQL database `nohS-db` using `DATA
 - Health check: `/health`
 - Database: PostgreSQL `nohS-db`
 
-The SQLite-to-PostgreSQL import has been completed. The app no longer imports from `data.db` or creates SQL snapshot files. `DATABASE_URL` is required; without it, the app stops rather than falling back to SQLite.
+The SQLite-to-PostgreSQL import has been completed. The app no longer imports from `data.db` or creates SQL snapshot files. `DATABASE_URL` is required; without it, the app stops rather than falling back to SQLite. Run `alembic upgrade head` before using the application. On a database with no usable password hashes, visit `/setup` once to create the initial administrator account.
 
 For local development, set `DATABASE_URL` to a PostgreSQL connection string before starting the app. Use the Internal URL when the app and database are in the same Render region; otherwise use the External URL with `sslmode=require`.
 

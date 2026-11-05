@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}ユーザーマスタ{% endblock %}
+{% block content %}
+<h1>ユーザーマスタ</h1>
+<p><a class="btn btn-primary" href="/users/new">ユーザーを追加</a></p>
+<div class="table-responsive">
+    <table class="table table-striped table-bordered align-middle">
+        <thead><tr><th>ID</th><th>ユーザー名</th><th>権限</th><th>使用可否</th><th>作成日時</th><th>更新日時</th><th></th></tr></thead>
+        <tbody>
+        {% for user in rows %}
+            <tr>
+                <td>{{ user.id }}</td>
+                <td>{{ user.username }}</td>
+                <td>{{ '管理者' if user.role == 'admin' else '閲覧者' }}</td>
+                <td>{{ '使用可' if user.is_active else '停止中' }}</td>
+                <td>{{ user.created_at }}</td>
+                <td>{{ user.updated_at }}</td>
+                <td><a class="btn btn-sm btn-outline-primary" href="/users/{{ user.id }}">編集</a></td>
+            </tr>
+        {% else %}
+            <tr><td colspan="7">ユーザーは登録されていません。</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+<a class="btn btn-outline-secondary" href="/">メニューへ戻る</a>
+{% endblock %}

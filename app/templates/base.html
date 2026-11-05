@@ -6,8 +6,15 @@
     <link rel="stylesheet" href="/static/vendor/bootstrap.min.css">    
     <link rel="stylesheet" href="/static/style.css?v=2">
     <title>{% block title %}{% endblock %}</title>
+    <meta name="robots" content="noindex,nofollow">
 </head>
 <body class="container mt-4">
+    {% if request.state.current_user is defined and request.state.current_user %}
+    <div class="d-flex justify-content-end align-items-center gap-3 mb-3">
+        <span>{{ request.state.current_user.username }}</span>
+        <form method="post" action="/logout"><button class="btn btn-sm btn-outline-secondary" type="submit">ログアウト</button></form>
+    </div>
+    {% endif %}
     {% block content %}{% endblock %}
 </body>
 </html>

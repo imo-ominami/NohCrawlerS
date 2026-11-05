@@ -3,6 +3,7 @@
 {% block content %}
 <h1>メニュー</h1>
 
+    {% if request.state.current_user.role == 'admin' %}
     <section class="mb-4">
         <h2 class="h5">能情報の取得</h2>
         <p>サイトから能公演情報を取得します。</p>
@@ -34,6 +35,7 @@
     <div class="alert alert-danger" role="alert">
         能情報を取得できませんでした: {{ error }}
     </div>
+    {% endif %}
     {% endif %}
 
     <section>
@@ -72,13 +74,16 @@
         </div>
     </section>
 
+    {% if request.state.current_user.role == 'admin' %}
     <section>
         <h2 class="h5">マスタ一覧</h2>
         <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-outline-primary" href="/urls">URLマスタ一覧</a>
             <a class="btn btn-outline-primary" href="/venues">会場マスタ一覧</a>
+            <a class="btn btn-outline-primary" href="/users">ユーザーマスタ</a>
         </div>
     </section>
+    {% endif %}
     {% if search_error %}
     <script>
         alert({{ search_error | tojson }});
@@ -91,6 +96,7 @@
             }
         });
 
+        {% if request.state.current_user.role == 'admin' %}
         document.getElementById("crawl-form").addEventListener("submit", function () {
             document.getElementById("crawl-start-date").value = document.getElementById("start-date").value;
             document.getElementById("crawl-end-date").value = document.getElementById("end-date").value;
@@ -105,5 +111,6 @@
             document.getElementById("crawl-button").disabled = false;
             document.getElementById("crawl-progress").hidden = true;
         });
+        {% endif %}
     </script>
 {% endblock %}

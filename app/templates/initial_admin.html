@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}初期管理者の作成{% endblock %}
+{% block content %}
+<main class="login-panel mx-auto" style="max-width: 420px;">
+    <h1>初期管理者の作成</h1>
+    <p>管理者アカウントがまだない場合に限り、最初のユーザーを作成できます。</p>
+    {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/setup">
+        <div class="mb-3">
+            <label class="form-label" for="username">ユーザー名</label>
+            <input class="form-control" id="username" name="username" autocomplete="username" required autofocus>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="password">パスワード（8文字以上）</label>
+            <input class="form-control" id="password" name="password" type="password" minlength="8" autocomplete="new-password" required>
+        </div>
+        <button class="btn btn-primary" type="submit">管理者を作成</button>
+        <a class="btn btn-outline-secondary" href="/login">戻る</a>
+    </form>
+</main>
+{% endblock %}

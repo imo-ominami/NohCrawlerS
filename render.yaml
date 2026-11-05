@@ -16,9 +16,7 @@ services:
         value: 3.14.8
       - key: APP_ENV
         value: production
-      - key: APP_USERNAME
-        sync: false
-      - key: APP_PASSWORD
+      - key: SESSION_SECRET
         sync: false
       - key: DATABASE_URL
         sync: false

@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}ログイン{% endblock %}
+{% block content %}
+<main class="login-panel mx-auto" style="max-width: 420px;">
+    <h1>ログイン</h1>
+    {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/login">
+        <div class="mb-3">
+            <label class="form-label" for="username">ユーザー名</label>
+            <input class="form-control" id="username" name="username" autocomplete="username" required autofocus>
+        </div>
+        <div class="mb-3">
+            <label class="form-label" for="password">パスワード</label>
+            <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn btn-primary" type="submit">ログイン</button>
+    </form>
+    {% if initial_setup %}
+    <p class="mt-3">初回利用の場合は<a href="/setup">初期管理者を作成</a>してください。</p>
+    {% endif %}
+</main>
+{% endblock %}

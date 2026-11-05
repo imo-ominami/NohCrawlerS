@@ -5,7 +5,9 @@
 
 <p>
     <a class="btn btn-outline-secondary" href="/">メニューへ戻る</a>
+    {% if request.state.current_user.role == 'admin' %}
     <a class="btn btn-primary" href="/urls/new">新規登録</a>
+    {% endif %}
 </p>
 
 <div class="table-responsive">
@@ -16,7 +18,9 @@
         <th class="col-list">名称</th>
         <th class="col-list">URL</th>
         <th>有効</th>
+        {% if request.state.current_user.role == 'admin' %}
         <th>編集</th>
+        {% endif %}
     </tr>
 </thead>
 
@@ -33,11 +37,13 @@
         {% endif %}
     </td>
 
+    {% if request.state.current_user.role == 'admin' %}
     <td>
         <a href="/urls/{{ row.id }}">
             編集
         </a>
     </td>
+    {% endif %}
 </tr>
 {% endfor %}
 </tbody>

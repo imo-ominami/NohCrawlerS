@@ -5,7 +5,9 @@
 
 <p>
     <a class="btn btn-outline-secondary" href="/">メニューへ戻る</a>
+    {% if request.state.current_user.role == 'admin' %}
     <a class="btn btn-primary" href="/venues/new">新規登録</a>
+    {% endif %}
 </p>
 
 <div class="table-responsive">
@@ -14,7 +16,9 @@
         <tr>
             <th>都道府県</th>
             <th>会場名</th>
+            {% if request.state.current_user.role == 'admin' %}
             <th>編集</th>
+            {% endif %}
         </tr>
     </thead>
     <tbody>
@@ -22,7 +26,9 @@
         <tr>
             <td>{{ row.prefecture }}</td>
             <td>{{ row.venue }}</td>
+            {% if request.state.current_user.role == 'admin' %}
             <td><a href="/venues/{{ row.id }}">編集</a></td>
+            {% endif %}
         </tr>
         {% endfor %}
     </tbody>

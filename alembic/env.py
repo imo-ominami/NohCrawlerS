@@ -8,6 +8,7 @@ from alembic import context
 from app.db.base import Base
 from app.db.engine import resolve_database_url
 from app.models.url_master import UrlMaster
+from app.models.user import User
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
