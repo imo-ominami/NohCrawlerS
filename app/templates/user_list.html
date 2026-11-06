@@ -13,8 +13,8 @@
                 <td>{{ user.username }}</td>
                 <td>{{ '管理者' if user.role == 'admin' else '閲覧者' }}</td>
                 <td>{{ '使用可' if user.is_active else '停止中' }}</td>
-                <td>{{ user.created_at }}</td>
-                <td>{{ user.updated_at }}</td>
+                <td>{{ user.created_at.strftime('%Y/%m/%d %H:%M:%S') }}</td>
+                <td>{{ user.updated_at.strftime('%Y/%m/%d %H:%M:%S') }}</td>
                 <td><a class="btn btn-sm btn-outline-primary" href="/users/{{ user.id }}">編集</a></td>
             </tr>
         {% else %}
