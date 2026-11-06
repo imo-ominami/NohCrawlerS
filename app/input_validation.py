@@ -13,7 +13,7 @@ def bounded_text(value: str, field: str, max_length: int, required: bool = False
 
 
 def checkbox_value(value: str | None, field: str) -> bool:
-    if value in {None, ""}:
+    if value in {None, "", "0"}:
         return False
     if value in {"1", "on"}:
         return True
