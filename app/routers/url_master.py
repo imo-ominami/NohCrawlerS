@@ -6,12 +6,13 @@ from fastapi import Form
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 from app.db.engine import engine
-from app.input_validation import bounded_text, checkbox_value, validate_http_url
+from app.input_validation import bounded_text, checkbox_value, is_http_url, validate_http_url
 
 router = APIRouter()
 
 APP_DIR = Path(__file__).resolve().parents[1]
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
+templates.env.filters["is_http_url"] = is_http_url
 
 @router.get("/urls")
 def url_list(request: Request):

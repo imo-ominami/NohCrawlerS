@@ -28,7 +28,11 @@
 {% for row in rows %}
 <tr>
     <td class="col-list">{{ row.name }}</td>
-    <td class="col-list">{{ row.url }}</td>
+    <td class="col-list">
+        {% if row.url|is_http_url %}
+        <a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.url }}</a>
+        {% else %}{{ row.url }}{% endif %}
+    </td>
     <td>
         {% if row.enabled %}
             ○
