@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.auth import hash_password
 from app.db.engine import engine
+from app.input_validation import bounded_text, checkbox_value
 
 
 router = APIRouter()
@@ -54,10 +55,10 @@ def user_create(
     denied = _admin_only(request)
     if denied:
         return denied
-    username = username.strip()
-    if not username or not password or role not in _ROLES:
+    username = bounded_text(username, "ユーザー名", 255, required=True)
+    if not password or len(password) < 8 or len(password) > 1024 or role not in _ROLES:
         return templates.TemplateResponse(request=request, name="user_edit.html", context={
-            "mode": "new", "error": "ユーザー名、パスワード、権限を確認してください。", "username": username, "role": role,
+            "mode": "new", "error": "ユーザー名、パスワード（8～1024文字）、権限を確認してください。", "username": username, "role": role,
         }, status_code=400)
     try:
         with engine.begin() as conn:
@@ -68,7 +69,7 @@ def user_create(
                 "username": username,
                 "password_hash": hash_password(password),
                 "role": role,
-                "is_active": bool(is_active),
+                "is_active": checkbox_value(is_active, "使用可"),
             })
     except IntegrityError:
         return templates.TemplateResponse(request=request, name="user_edit.html", context={
@@ -104,13 +105,48 @@ def user_update(
     denied = _admin_only(request)
     if denied:
         return denied
-    username = username.strip()
-    if not username or role not in _ROLES:
-        return RedirectResponse(url=f"/users/{user_id}", status_code=303)
-    values = {"id": user_id, "username": username, "role": role, "is_active": bool(is_active)}
-    statement = "UPDATE users SET username=:username, role=:role, is_active=:is_active, updated_at=CURRENT_TIMESTAMP WHERE id=:id"
+    username = bounded_text(username, "ユーザー名", 255, required=True)
+    if role not in _ROLES or (password and (len(password) < 8 or len(password) > 1024)):
+        with engine.connect() as conn:
+            user = conn.execute(
+                text("SELECT id, username, role, is_active FROM users WHERE id=:id"),
+                {"id": user_id},
+            ).mappings().first()
+        if not user:
+            return RedirectResponse(url="/users", status_code=303)
+        return templates.TemplateResponse(
+            request=request,
+            name="user_edit.html",
+            context={
+                "mode": "edit",
+                "user": user,
+                "error": "ユーザー名、権限、パスワード（変更する場合は8～1024文字）を確認してください。",
+            },
+            status_code=400,
+        )
+    values = {
+        "id": user_id,
+        "username": username,
+        "role": role,
+        "is_active": checkbox_value(is_active, "使用可"),
+    }
+    statement = """
+        UPDATE users
+        SET username=:username,
+            role=:role,
+            failed_login_attempts = CASE
+                WHEN is_active = FALSE AND :is_active = TRUE THEN 0
+                ELSE failed_login_attempts
+            END,
+            is_active=:is_active,
+            updated_at=CURRENT_TIMESTAMP
+        WHERE id=:id
+    """
     if password:
-        statement = statement.replace("updated_at=CURRENT_TIMESTAMP", "password_hash=:password_hash, updated_at=CURRENT_TIMESTAMP")
+        statement = statement.replace(
+            "updated_at=CURRENT_TIMESTAMP",
+            "password_hash=:password_hash, updated_at=CURRENT_TIMESTAMP",
+        )
         values["password_hash"] = hash_password(password)
     try:
         with engine.begin() as conn:

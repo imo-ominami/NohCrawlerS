@@ -4,6 +4,7 @@
 <h1>{{ 'ユーザー登録' if mode == 'new' else 'ユーザー編集' }}</h1>
 {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
 <form method="post" action="{{ '/users/create' if mode == 'new' else '/users/update/' ~ user.id }}" class="edit-form" style="max-width: 560px;">
+    <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
     {% if mode == 'edit' %}<div class="mb-3"><label class="form-label" for="id">ID</label><input class="form-control" id="id" value="{{ user.id }}" readonly></div>{% endif %}
     <div class="mb-3">
         <label class="form-label" for="username">ユーザー名</label>
@@ -11,7 +12,7 @@
     </div>
     <div class="mb-3">
         <label class="form-label" for="password">パスワード{% if mode == 'edit' %}（変更する場合のみ入力）{% endif %}</label>
-        <input class="form-control" id="password" name="password" type="password" autocomplete="new-password" {% if mode == 'new' %}required{% endif %}>
+        <input class="form-control" id="password" name="password" type="password" minlength="8" maxlength="1024" autocomplete="new-password" {% if mode == 'new' %}required{% endif %}>
     </div>
     <div class="mb-3">
         <label class="form-label" for="role">権限</label>
@@ -24,6 +25,7 @@
         <input class="form-check-input" id="is_active" name="is_active" type="checkbox" value="1" {% if mode == 'new' or user.is_active %}checked{% endif %}>
         <label class="form-check-label" for="is_active">使用可</label>
     </div>
+    <p class="form-text">ログインに5回連続で失敗すると使用不可になります。再度使用可にすると失敗回数がリセットされます。</p>
     <button class="btn btn-primary" type="submit">保存</button>
     <a class="btn btn-outline-secondary" href="/users">戻る</a>
 </form>

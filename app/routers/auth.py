@@ -7,10 +7,12 @@ from sqlalchemy import text
 
 from app.auth import create_session_token, hash_password, verify_password
 from app.db.engine import engine
+from app.input_validation import bounded_text
 
 
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parents[1] / "templates"))
+_LOGIN_FAILURE_LIMIT = 5
 
 
 @router.get("/login")
@@ -28,13 +30,47 @@ def login_page(request: Request, error: str | None = None):
 
 @router.post("/login")
 def login(request: Request, username: str = Form(...), password: str = Form(...)):
+    username = bounded_text(username, "ユーザー名", 255, required=True)
     with engine.connect() as conn:
         user = conn.execute(
             text("SELECT id, password_hash, is_active FROM users WHERE username = :username"),
             {"username": username.strip()},
         ).mappings().first()
 
-    if not user or not user["is_active"] or not verify_password(password, user["password_hash"]):
+    if not user or not user["is_active"]:
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={"error": "ユーザー名またはパスワードが正しくありません。"},
+            status_code=401,
+        )
+
+    if len(password) > 1024 or not verify_password(password, user["password_hash"]):
+        with engine.begin() as conn:
+            conn.execute(text("""
+                UPDATE users
+                SET failed_login_attempts = failed_login_attempts + 1,
+                    is_active = CASE
+                        WHEN failed_login_attempts + 1 >= :failure_limit THEN FALSE
+                        ELSE is_active
+                    END
+                WHERE id = :id AND is_active = TRUE
+            """), {"id": user["id"], "failure_limit": _LOGIN_FAILURE_LIMIT})
+        return templates.TemplateResponse(
+            request=request,
+            name="login.html",
+            context={"error": "ユーザー名またはパスワードが正しくありません。"},
+            status_code=401,
+        )
+
+    with engine.begin() as conn:
+        active_user_id = conn.execute(text("""
+            UPDATE users
+            SET failed_login_attempts = 0
+            WHERE id = :id AND is_active = TRUE
+            RETURNING id
+        """), {"id": user["id"]}).scalar_one_or_none()
+    if active_user_id is None:
         return templates.TemplateResponse(
             request=request,
             name="login.html",
@@ -45,7 +81,7 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
     response = RedirectResponse(url="/", status_code=303)
     response.set_cookie(
         "noh_session",
-        create_session_token(user["id"]),
+        create_session_token(active_user_id),
         max_age=60 * 60 * 24 * 14,
         httponly=True,
         secure=request.url.scheme == "https",
@@ -75,10 +111,10 @@ def initial_admin_page(request: Request):
 
 @router.post("/setup")
 def initial_admin_create(request: Request, username: str = Form(...), password: str = Form(...)):
-    username = username.strip()
-    if not username or len(password) < 8:
+    username = bounded_text(username, "ユーザー名", 255, required=True)
+    if len(password) < 8 or len(password) > 1024:
         return templates.TemplateResponse(request=request, name="initial_admin.html", context={
-            "error": "ユーザー名を入力し、パスワードは8文字以上にしてください。",
+            "error": "ユーザー名を入力し、パスワードは8～1024文字にしてください。",
         }, status_code=400)
 
     with engine.begin() as conn:

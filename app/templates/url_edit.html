@@ -12,6 +12,7 @@
     <button class="btn btn-primary" type="submit" form="url-entry-form">保存</button>
     {% if mode == "edit" %}
     <form method="post" action="/urls/delete/{{ row.id }}" style="display:inline;">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
         <button
             type="submit"
             class="btn btn-danger"
@@ -26,11 +27,13 @@
     <form id="url-entry-form" method="post" action="/urls/update/{{ row.id }}">
 {% endif %}
 
+<input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
 <div>
     <label>名称</label><br>
     <input class="form-control"
         type="text"
         name="name"
+        maxlength="255"
         value="{{ row.name if mode == 'edit' else '' }}"
         required
     >
@@ -41,8 +44,9 @@
 <div>
     <label>URL</label><br>
     <input class="form-control"
-        type="text"
+        type="url"
         name="url"
+        maxlength="1000"
         size="80"
         value="{{ row.url if mode == 'edit' else '' }}"
         required

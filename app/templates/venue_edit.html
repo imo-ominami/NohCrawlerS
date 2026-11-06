@@ -12,6 +12,7 @@
     <button class="btn btn-primary" type="submit" form="venue-entry-form">保存</button>
     {% if mode == "edit" %}
     <form method="post" action="/venues/delete/{{ row.id }}" style="display:inline;">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
         <button
             type="submit"
             class="btn btn-danger"
@@ -26,6 +27,7 @@
     <form id="venue-entry-form" method="post" action="/venues/update/{{ row.id }}">
 {% endif %}
 
+<input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
 <div>
     <label>都道府県</label><br>
     <select class="form-select venue-prefecture" name="code" required>
@@ -49,6 +51,7 @@
     <input class="form-control venue-name"
         type="text"
         name="venue"
+        maxlength="255"
         size="30"
         value="{{ row.venue if mode == 'edit' else '' }}"
         required

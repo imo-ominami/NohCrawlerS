@@ -8,6 +8,7 @@ import time
 
 _PASSWORD_ITERATIONS = 310_000
 _SESSION_TTL_SECONDS = 60 * 60 * 24 * 14
+_CSRF_TTL_SECONDS = 60 * 60 * 24 * 14
 _SESSION_SECRET = os.getenv("SESSION_SECRET", "development-only-change-this-session-secret").encode("utf-8")
 
 
@@ -47,3 +48,25 @@ def read_session_token(token: str) -> int | None:
         return int(user_id_text)
     except (ValueError, TypeError):
         return None
+
+
+def create_csrf_token() -> str:
+    nonce = secrets.token_urlsafe(32)
+    expires_at = int(time.time()) + _CSRF_TTL_SECONDS
+    payload = f"{nonce}.{expires_at}"
+    signature = hmac.new(_SESSION_SECRET, payload.encode("ascii"), hashlib.sha256).hexdigest()
+    return f"{payload}.{signature}"
+
+
+def verify_csrf_token(token: str) -> bool:
+    try:
+        nonce, expiry_text, signature = token.rsplit(".", 2)
+        payload = f"{nonce}.{expiry_text}"
+        expected = hmac.new(_SESSION_SECRET, payload.encode("ascii"), hashlib.sha256).hexdigest()
+        return (
+            bool(nonce)
+            and int(expiry_text) >= int(time.time())
+            and hmac.compare_digest(signature, expected)
+        )
+    except (ValueError, TypeError, UnicodeEncodeError):
+        return False

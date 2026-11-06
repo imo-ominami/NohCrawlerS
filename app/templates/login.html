@@ -5,13 +5,14 @@
     <h1>ログイン</h1>
     {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
     <form method="post" action="/login">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
         <div class="mb-3">
             <label class="form-label" for="username">ユーザー名</label>
-            <input class="form-control" id="username" name="username" autocomplete="username" required autofocus>
+            <input class="form-control" id="username" name="username" maxlength="255" autocomplete="username" required autofocus>
         </div>
         <div class="mb-3">
             <label class="form-label" for="password">パスワード</label>
-            <input class="form-control" id="password" name="password" type="password" autocomplete="current-password" required>
+            <input class="form-control" id="password" name="password" type="password" maxlength="1024" autocomplete="current-password" required>
         </div>
         <button class="btn btn-primary" type="submit">ログイン</button>
     </form>

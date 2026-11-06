@@ -7,11 +7,31 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from app.db.engine import engine
+from app.input_validation import bounded_text, checkbox_value, is_http_url, validate_http_url
 
 router = APIRouter()
 
 APP_DIR = Path(__file__).resolve().parents[1]
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
+templates.env.filters["is_http_url"] = is_http_url
+
+
+def _validate_show_fields(showdate, showname, url, prefucture, venues, starttime, memo):
+    showdate = bounded_text(showdate, "公演日", 10, required=True)
+    try:
+        if date.fromisoformat(showdate).isoformat() != showdate:
+            raise ValueError
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="公演日はYYYY-MM-DD形式で入力してください。") from error
+    return {
+        "showdate": showdate,
+        "showname": bounded_text(showname, "公演名", 500, required=True),
+        "url": validate_http_url(url),
+        "prefucture": bounded_text(prefucture or "", "都道府県", 100),
+        "venues": bounded_text(venues or "", "会場", 500),
+        "starttime": bounded_text(starttime or "", "開始時間", 32),
+        "memo": bounded_text(memo or "", "備考", 5000),
+    }
 
 
 def _get_prefectures(conn):
@@ -29,6 +49,9 @@ def _display_search_date(value):
 
 
 def _show_rows(start_date, end_date, prefucture, favorite_only=False):
+    start_date = bounded_text(start_date or "", "開始日", 10)
+    end_date = bounded_text(end_date or "", "終了日", 10)
+    prefucture = bounded_text(prefucture or "", "都道府県", 100)
     try:
         from_date = date.fromisoformat(start_date.replace("/", "-")) if start_date else None
         to_date = date.fromisoformat(end_date.replace("/", "-")) if end_date else None
@@ -128,20 +151,26 @@ async def save_show_favorites(request: Request):
     except ValueError as error:
         raise HTTPException(status_code=400, detail="Invalid favorite data") from error
 
-    if not isinstance(favorites, list):
+    if not isinstance(favorites, list) or len(favorites) > 500:
         raise HTTPException(status_code=400, detail="Invalid favorite data")
 
+    normalized_favorites = []
+    for item in favorites:
+        if (
+            not isinstance(item, dict)
+            or not isinstance(item.get("id"), int)
+            or isinstance(item.get("id"), bool)
+            or item["id"] <= 0
+            or not isinstance(item.get("favorite"), bool)
+        ):
+            raise HTTPException(status_code=400, detail="Invalid favorite data")
+        normalized_favorites.append(item)
+
     with engine.begin() as conn:
-        for item in favorites:
-            if not isinstance(item, dict):
-                continue
-            try:
-                show_id = int(item["id"])
-            except (KeyError, TypeError, ValueError):
-                continue
+        for item in normalized_favorites:
             conn.execute(
                 text("UPDATE show_info SET favorite = :favorite WHERE id = :id"),
-                {"id": show_id, "favorite": int(bool(item.get("favorite")))},
+                {"id": item["id"], "favorite": int(item["favorite"])},
             )
 
     return {"saved": len(favorites)}
@@ -219,9 +248,16 @@ def show_create(
     venues: str | None = Form(None),
     starttime: str | None = Form(None),
     memo: str | None = Form(None),
-    favorite: bool = Form(False),
+    favorite: str | None = Form(None),
 ):
+    values = _validate_show_fields(showdate, showname, url, prefucture, venues, starttime, memo)
+    favorite_value = checkbox_value(favorite, "お気に入り")
     with engine.begin() as conn:
+        if values["prefucture"] and conn.execute(
+            text("SELECT 1 FROM prefucture_mst WHERE prefucture = :prefucture"),
+            {"prefucture": values["prefucture"]},
+        ).first() is None:
+            raise HTTPException(status_code=422, detail="都道府県の指定が正しくありません。")
         conn.execute(
             text("""
                 INSERT INTO show_info
@@ -230,14 +266,14 @@ def show_create(
                     (:showdate, :prefucture, :showname, :venues, :starttime, :memo, :url, :favorite)
             """),
             {
-                "showdate": showdate,
-                "prefucture": prefucture or None,
-                "showname": showname,
-                "venues": venues or None,
-                "starttime": starttime or None,
-                "memo": memo or None,
-                "url": url,
-                "favorite": int(favorite),
+                "showdate": values["showdate"],
+                "prefucture": values["prefucture"] or None,
+                "showname": values["showname"],
+                "venues": values["venues"] or None,
+                "starttime": values["starttime"] or None,
+                "memo": values["memo"] or None,
+                "url": values["url"],
+                "favorite": int(favorite_value),
             },
         )
 
@@ -289,13 +325,23 @@ def show_update(
     venues: str | None = Form(None),
     starttime: str | None = Form(None),
     memo: str | None = Form(None),
-    favorite: bool = Form(False),
+    favorite: str | None = Form(None),
     filter_start_date: str = Form(""),
     filter_end_date: str = Form(""),
     filter_prefucture: str = Form(""),
     filter_favorite_only: bool = Form(False),
 ):
+    values = _validate_show_fields(showdate, showname, url, prefucture, venues, starttime, memo)
+    favorite_value = checkbox_value(favorite, "お気に入り")
+    filter_start_date = bounded_text(filter_start_date, "開始日", 10)
+    filter_end_date = bounded_text(filter_end_date, "終了日", 10)
+    filter_prefucture = bounded_text(filter_prefucture, "都道府県", 100)
     with engine.begin() as conn:
+        if values["prefucture"] and conn.execute(
+            text("SELECT 1 FROM prefucture_mst WHERE prefucture = :prefucture"),
+            {"prefucture": values["prefucture"]},
+        ).first() is None:
+            raise HTTPException(status_code=422, detail="都道府県の指定が正しくありません。")
         result = conn.execute(
             text("""
                 UPDATE show_info
@@ -311,14 +357,14 @@ def show_update(
             """),
             {
                 "id": id,
-                "showdate": showdate,
-                "prefucture": prefucture or None,
-                "showname": showname,
-                "venues": venues or None,
-                "starttime": starttime or None,
-                "memo": memo or None,
-                "url": url,
-                "favorite": int(favorite),
+                "showdate": values["showdate"],
+                "prefucture": values["prefucture"] or None,
+                "showname": values["showname"],
+                "venues": values["venues"] or None,
+                "starttime": values["starttime"] or None,
+                "memo": values["memo"] or None,
+                "url": values["url"],
+                "favorite": int(favorite_value),
             },
         )
 
@@ -341,6 +387,9 @@ def show_delete(
     filter_prefucture: str = Form(""),
     filter_favorite_only: bool = Form(False),
 ):
+    filter_start_date = bounded_text(filter_start_date, "開始日", 10)
+    filter_end_date = bounded_text(filter_end_date, "終了日", 10)
+    filter_prefucture = bounded_text(filter_prefucture, "都道府県", 100)
     with engine.begin() as conn:
         result = conn.execute(
             text("DELETE FROM show_info WHERE id = :id"),

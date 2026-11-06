@@ -45,7 +45,11 @@
             <td class="show-name">{{ row.showname }}{% if row.new %} <span style="color: red;">new</span>{% endif %}</td>
             <td class="show-venue">{{ row.venues or '' }}</td>
             <td class="show-starttime">{{ row.starttime or '' }}</td>
-            <td class="show-url"><a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.url }}</a></td>
+            <td class="show-url">
+                {% if row.url|is_http_url %}
+                <a href="{{ row.url }}" target="_blank" rel="noopener noreferrer">{{ row.url }}</a>
+                {% else %}{{ row.url }}{% endif %}
+            </td>
             {% if request.state.current_user.role == 'admin' %}
             <td class="show-edit"><a href="/shows/{{ row.id }}?start_date={{ start_date|urlencode }}&amp;end_date={{ end_date|urlencode }}&amp;prefucture={{ prefucture|urlencode }}&amp;favorite_only={{ 1 if favorite_only else 0 }}">編集</a></td>
             {% endif %}
@@ -76,9 +80,10 @@
                 continue;
             }
             const batch = snapshot();
+            const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
             saving = fetch("/shows/favorites", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
                 body: JSON.stringify(batch)
             }).then((response) => {
                 if (!response.ok) throw new Error("Favorite save failed");

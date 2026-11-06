@@ -1,15 +1,17 @@
 from pathlib import Path
+import re
 from threading import Lock
 from time import monotonic
 from urllib.parse import urlencode
 from uuid import uuid4
 
-from fastapi import APIRouter, Form, Query, Request
+from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from app.db.engine import engine
+from app.input_validation import bounded_text, checkbox_value
 
 router = APIRouter()
 
@@ -45,7 +47,12 @@ def menu_page(
     error: str | None = Query(None),
     crawl_token: str = Query(""),
 ):
-    crawl_token = crawl_token or uuid4().hex
+    start_date = bounded_text(start_date, "開始日", 10)
+    end_date = bounded_text(end_date, "終了日", 10)
+    prefucture = bounded_text(prefucture, "都道府県", 100)
+    error = bounded_text(error or "", "エラー", 500)
+    if not re.fullmatch(r"[0-9a-f]{32}", crawl_token):
+        crawl_token = uuid4().hex
     result = {"登録公演数": registered} if registered is not None else None
     if result is not None:
         result["registered_count"] = registered
@@ -71,15 +78,22 @@ def crawl_site_information(
     start_date: str = Form(""),
     end_date: str = Form(""),
     prefucture: str = Form(""),
-    favorite_only: bool = Form(False),
+    favorite_only: str | None = Form(None),
 ):
+    crawl_token = bounded_text(crawl_token, "取得トークン", 32)
+    if crawl_token and not re.fullmatch(r"[0-9a-f]{32}", crawl_token):
+        raise HTTPException(status_code=422, detail="取得トークンの形式が正しくありません。")
     crawl_token = crawl_token or uuid4().hex
+    start_date = bounded_text(start_date, "開始日", 10)
+    end_date = bounded_text(end_date, "終了日", 10)
+    prefucture = bounded_text(prefucture, "都道府県", 100)
+    favorite_value = checkbox_value(favorite_only, "お気に入り")
     search_params = {
         key: value for key, value in {
             "start_date": start_date,
             "end_date": end_date,
             "prefucture": prefucture,
-            "favorite_only": "1" if favorite_only else "",
+            "favorite_only": "1" if favorite_value else "",
         }.items() if value
     }
     with _crawl_lock:

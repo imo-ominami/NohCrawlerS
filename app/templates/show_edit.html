@@ -18,6 +18,7 @@
     <button class="btn btn-primary" type="submit" form="show-edit-form">保存</button>
     {% if mode == "edit" %}
     <form method="post" action="/shows/delete/{{ row.id }}" style="display:inline;">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
         <input type="hidden" name="filter_start_date" value="{{ start_date }}">
         <input type="hidden" name="filter_end_date" value="{{ end_date }}">
         <input type="hidden" name="filter_prefucture" value="{{ prefucture }}">
@@ -34,6 +35,7 @@
     <form id="show-edit-form" method="post" action="/shows/update/{{ row.id }}">
 {% endif %}
 
+<input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
 <input type="hidden" name="filter_start_date" value="{{ start_date }}">
 <input type="hidden" name="filter_end_date" value="{{ end_date }}">
 <input type="hidden" name="filter_prefucture" value="{{ prefucture }}">
@@ -66,29 +68,29 @@
 <div class="mb-3">
     <label class="form-label" for="showname">公演名</label>
     <input class="form-control" id="showname" type="text" name="showname"
-        value="{{ row.showname if mode == 'edit' else '' }}" required>
+        maxlength="500" value="{{ row.showname if mode == 'edit' else '' }}" required>
 </div>
 
 <div class="mb-3">
     <label class="form-label" for="venues">会場</label>
     <input class="form-control" id="venues" type="text" name="venues"
-        value="{{ row.venues if mode == 'edit' and row.venues else '' }}">
+        maxlength="500" value="{{ row.venues if mode == 'edit' and row.venues else '' }}">
 </div>
 
 <div class="mb-3 d-flex align-items-center gap-3 flex-wrap">
     <label class="form-label mb-0" for="starttime">開始時間</label>
-    <input class="form-control show-edit-starttime" id="starttime" type="text" name="starttime"
+    <input class="form-control show-edit-starttime" id="starttime" type="text" name="starttime" maxlength="32"
         value="{{ row.starttime if mode == 'edit' and row.starttime else '' }}">
 </div>
 
 <div class="mb-3">
     <label class="form-label" for="memo">備考</label>
-    <textarea class="form-control" id="memo" name="memo" rows="3">{{ row.memo if mode == 'edit' and row.memo else '' }}</textarea>
+    <textarea class="form-control" id="memo" name="memo" rows="3" maxlength="5000">{{ row.memo if mode == 'edit' and row.memo else '' }}</textarea>
 </div>
 
 <div class="mb-3">
     <label class="form-label" for="url">URL</label>
-    <input class="form-control" id="url" type="url" name="url"
+    <input class="form-control" id="url" type="url" name="url" maxlength="2048"
         value="{{ row.url if mode == 'edit' else '' }}" required>
 </div>
 

@@ -6,6 +6,7 @@ from fastapi import Form
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 from app.db.engine import engine
+from app.input_validation import bounded_text, checkbox_value, validate_http_url
 
 router = APIRouter()
 
@@ -55,8 +56,9 @@ def url_create(
     url: str = Form(...),
     enabled: str | None = Form(None)
 ):
-
-    enabled_value = bool(enabled)
+    name = bounded_text(name, "名称", 255, required=True)
+    url = validate_http_url(url, "巡回先URL", 1000)
+    enabled_value = checkbox_value(enabled, "有効")
     with engine.begin() as conn:
 
         conn.execute(
@@ -122,8 +124,9 @@ def url_update(
     url: str = Form(...),
     enabled: str | None = Form(None)
 ):
-
-    enabled_value = bool(enabled)
+    name = bounded_text(name, "名称", 255, required=True)
+    url = validate_http_url(url, "巡回先URL", 1000)
+    enabled_value = checkbox_value(enabled, "有効")
     with engine.begin() as conn:
 
         conn.execute(

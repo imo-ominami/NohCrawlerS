@@ -12,6 +12,10 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint("role IN ('admin', 'viewer')", name="ck_users_role"),
+        CheckConstraint(
+            "failed_login_attempts >= 0",
+            name="ck_users_failed_login_attempts_nonnegative",
+        ),
         UniqueConstraint("username", name="uq_users_username"),
     )
 
@@ -20,6 +24,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False, default="viewer", server_default="viewer")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

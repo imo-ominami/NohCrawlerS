@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 from app.db.engine import engine
+from app.input_validation import bounded_text
 
 router = APIRouter()
 
@@ -65,6 +66,7 @@ def venue_create(
     code: int = Form(...),
     venue: str = Form(...),
 ):
+    venue = bounded_text(venue, "会場", 255, required=True)
     with engine.begin() as conn:
         if conn.execute(
             text("SELECT 1 FROM prefucture_mst WHERE code = :code"),
@@ -116,6 +118,7 @@ def venue_update(
     code: int = Form(...),
     venue: str = Form(...),
 ):
+    venue = bounded_text(venue, "会場", 255, required=True)
     with engine.begin() as conn:
         if conn.execute(
             text("SELECT 1 FROM prefucture_mst WHERE code = :code"),
