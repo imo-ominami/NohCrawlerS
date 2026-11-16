@@ -1,0 +1,73 @@
+name: PostgreSQL backup to Cloudflare R2
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - name: Validate configuration and install PostgreSQL tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in DATABASE_URL R2_ACCOUNT_ID R2_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Required GitHub secret is missing: $name" >&2
+              exit 1
+            fi
+          done
+          sudo apt-get update
+          sudo apt-get install --yes awscli postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+          pg_dump --version
+          aws --version
+
+      - name: Create and upload database backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          dump_file="$(mktemp --suffix=.dump)"
+          trap 'rm -f "$dump_file"' EXIT
+
+          pg_dump \
+            --format=custom \
+            --no-owner \
+            --no-acl \
+            --file="$dump_file" \
+            --dbname="$DATABASE_URL"
+          pg_restore --list "$dump_file" >/dev/null
+
+          filename="noh-crawler-$(date -u +%Y%m%dT%H%M%SZ).dump"
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          aws s3 cp "$dump_file" "s3://${R2_BUCKET}/postgres/${filename}" \
+            --endpoint-url "$endpoint" \
+            --only-show-errors
+          local_size="$(stat --format=%s "$dump_file")"
+          remote_size="$(aws s3api head-object \
+            --bucket "$R2_BUCKET" \
+            --key "postgres/${filename}" \
+            --endpoint-url "$endpoint" \
+            --query ContentLength \
+            --output text)"
+          if [[ "$remote_size" != "$local_size" ]]; then
+            echo "Uploaded backup size does not match the local dump" >&2
+            exit 1
+          fi
+          echo "Backup uploaded: s3://${R2_BUCKET}/postgres/${filename} (${remote_size} bytes)"

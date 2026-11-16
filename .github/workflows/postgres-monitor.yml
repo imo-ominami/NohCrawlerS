@@ -1,0 +1,44 @@
+name: Monitor Render PostgreSQL
+
+on:
+  schedule:
+    - cron: "17 18 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_POSTGRES_ID: ${{ secrets.RENDER_POSTGRES_ID }}
+    steps:
+      - name: Check that the Render database still exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$RENDER_API_KEY" || -z "$RENDER_POSTGRES_ID" ]]; then
+            echo "Required GitHub secrets RENDER_API_KEY and RENDER_POSTGRES_ID are missing." >&2
+            exit 1
+          fi
+
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --header 'Accept: application/json' \
+            "https://api.render.com/v1/postgres/${RENDER_POSTGRES_ID}")"
+
+          if [[ "$status" == "200" ]]; then
+            echo "Render PostgreSQL resource exists."
+          elif [[ "$status" == "404" || "$status" == "410" ]]; then
+            echo "::error::Render PostgreSQL was deleted or is no longer available. Review the PostgreSQL recovery workflow."
+            exit 1
+          else
+            echo "::error::Render API check failed with HTTP ${status}; deletion was not confirmed."
+            exit 1
+          fi

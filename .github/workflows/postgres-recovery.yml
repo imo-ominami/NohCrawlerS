@@ -1,0 +1,203 @@
+name: Recover PostgreSQL from Cloudflare R2
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: postgres-recovery
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_POSTGRES_ID: ${{ secrets.RENDER_POSTGRES_ID }}
+      RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+      RECOVERY_DATABASE_URL: ${{ secrets.RECOVERY_DATABASE_URL }}
+      RECOVERY_RENDER_DATABASE_URL: ${{ secrets.RECOVERY_RENDER_DATABASE_URL }}
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ secrets.R2_BUCKET }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - name: Validate recovery configuration and install tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in RENDER_API_KEY RENDER_POSTGRES_ID RENDER_SERVICE_ID \
+            RECOVERY_DATABASE_URL RECOVERY_RENDER_DATABASE_URL \
+            R2_ACCOUNT_ID R2_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "Required GitHub secret is missing: $name" >&2
+              exit 1
+            fi
+          done
+          python3 -c '
+          import os
+          from urllib.parse import unquote, urlsplit
+
+          external = urlsplit(os.environ["RECOVERY_DATABASE_URL"])
+          internal = urlsplit(os.environ["RECOVERY_RENDER_DATABASE_URL"])
+          if (unquote(external.username or ""), unquote(external.path)) != (
+              unquote(internal.username or ""), unquote(internal.path)
+          ):
+              raise SystemExit("Recovery external and internal URLs must identify the same database and user")
+          '
+          sudo apt-get update
+          sudo apt-get install --yes awscli postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+          pg_restore --version
+          aws --version
+
+      - name: Confirm the original database was deleted
+        shell: bash
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --header 'Accept: application/json' \
+            "https://api.render.com/v1/postgres/${RENDER_POSTGRES_ID}")"
+          if [[ "$status" != "404" && "$status" != "410" ]]; then
+            echo "::error::Recovery refused: the original database deletion was not confirmed (HTTP ${status})."
+            exit 1
+          fi
+          echo "Original Render PostgreSQL deletion confirmed."
+
+      - name: Download and restore the latest backup
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          dump_file="$(mktemp --suffix=.dump)"
+          list_file="$(mktemp)"
+          trap 'rm -f "$dump_file" "$list_file"' EXIT
+
+          endpoint="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+          object_keys="$(aws s3api list-objects-v2 \
+            --bucket "$R2_BUCKET" \
+            --prefix postgres/ \
+            --endpoint-url "$endpoint" \
+            --query 'Contents[].Key' \
+            --output json)"
+          latest_key="$(jq -r '[.[]? | select(startswith("postgres/noh-crawler-"))] | sort | last // empty' <<<"$object_keys")"
+          if [[ -z "$latest_key" ]]; then
+            echo "::error::No PostgreSQL backup was found in the configured R2 bucket."
+            exit 1
+          fi
+          echo "Selected the most recent timestamped backup: ${latest_key}"
+
+          aws s3 cp "s3://${R2_BUCKET}/${latest_key}" "$dump_file" \
+            --endpoint-url "$endpoint" \
+            --only-show-errors
+          pg_restore --list "$dump_file" >"$list_file"
+          if [[ ! -s "$list_file" ]]; then
+            echo "::error::The selected backup archive is empty or invalid."
+            exit 1
+          fi
+
+          for attempt in $(seq 1 30); do
+            if pg_isready --dbname="$RECOVERY_DATABASE_URL" --timeout=5 >/dev/null 2>&1; then
+              break
+            fi
+            if [[ "$attempt" -eq 30 ]]; then
+              echo "::error::The replacement PostgreSQL is not reachable after five minutes."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          existing_objects="$(psql "$RECOVERY_DATABASE_URL" \
+            --no-psqlrc --set ON_ERROR_STOP=1 --tuples-only --no-align \
+            --command "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema' AND c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')")"
+          if [[ "$existing_objects" != "0" ]]; then
+            echo "::error::The replacement database is not empty. Refusing to overwrite existing objects."
+            exit 1
+          fi
+
+          pg_restore --exit-on-error --no-owner --no-acl \
+            --dbname="$RECOVERY_DATABASE_URL" "$dump_file"
+          restored_tables="$(psql "$RECOVERY_DATABASE_URL" \
+            --no-psqlrc --set ON_ERROR_STOP=1 --tuples-only --no-align \
+            --command "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname NOT LIKE 'pg_%' AND n.nspname <> 'information_schema' AND c.relkind IN ('r', 'p')")"
+          if [[ "$restored_tables" == "0" ]]; then
+            echo "::error::Restore completed without any user tables; refusing to switch the service."
+            exit 1
+          fi
+          echo "Backup restored and verified (${restored_tables} tables found)."
+
+      - name: Switch Render service to the restored database
+        shell: bash
+        run: |
+          set -euo pipefail
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+
+          status="$(jq -n --arg value "$RECOVERY_RENDER_DATABASE_URL" '{value: $value}' |
+            curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --request PUT \
+              --header "Authorization: Bearer ${RENDER_API_KEY}" \
+              --header 'Accept: application/json' \
+              --header 'Content-Type: application/json' \
+              --data-binary @- \
+              "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/env-vars/DATABASE_URL")"
+          if [[ "$status" != "200" ]]; then
+            echo "::error::Could not update DATABASE_URL (HTTP ${status}). Ensure it is set directly on the Render service, not in an environment group."
+            exit 1
+          fi
+
+          status="$(curl --silent --show-error \
+            --output "$response_file" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --header 'Accept: application/json' \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys")"
+          if [[ "$status" != "201" && "$status" != "202" ]]; then
+            echo "::error::DATABASE_URL was updated, but the Render deploy could not be triggered (HTTP ${status}). Trigger a deploy manually."
+            exit 1
+          fi
+          deploy_id="$(jq -er '.id' "$response_file")"
+          echo "Render deploy started: ${deploy_id}"
+
+          for attempt in $(seq 1 60); do
+            status="$(curl --silent --show-error \
+              --output "$response_file" \
+              --write-out '%{http_code}' \
+              --header "Authorization: Bearer ${RENDER_API_KEY}" \
+              --header 'Accept: application/json' \
+              "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys/${deploy_id}")"
+            if [[ "$status" != "200" ]]; then
+              echo "::error::Could not check Render deploy status (HTTP ${status})."
+              exit 1
+            fi
+            deploy_status="$(jq -er '.status' "$response_file")"
+            case "$deploy_status" in
+              live)
+                echo "Render deploy is live."
+                exit 0
+                ;;
+              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
+                echo "::error::Render deploy failed with status ${deploy_status}."
+                exit 1
+                ;;
+            esac
+            sleep 15
+          done
+          echo "::error::Timed out waiting for the Render deploy to finish. Check its status in the Render Dashboard."
+          exit 1
