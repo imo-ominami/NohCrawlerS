@@ -15,7 +15,7 @@ For local development, set `DATABASE_URL` to a PostgreSQL connection string befo
 
 ## Backups and recovery
 
-The GitHub Actions workflow at `.github/workflows/postgres-backup.yml` creates a daily custom-format `pg_dump` backup and uploads it to Cloudflare R2. It runs at 18:00 UTC (03:00 Japan time) and can also be started manually from the repository's **Actions** tab. GitHub-hosted runners and GitHub Actions secrets are used; no backup is stored on the Render service or in the repository.
+The GitHub Actions workflow at `.github/workflows/postgres-backup.yml` is currently disabled (`backup` job condition is `false`), so it does not create or upload backups. To resume backups, change that condition to `true`. When enabled, it creates a daily custom-format `pg_dump` backup and uploads it to Cloudflare R2 at 18:00 UTC (03:00 Japan time), and can also be started manually from the repository's **Actions** tab. GitHub-hosted runners and GitHub Actions secrets are used; no backup is stored on the Render service or in the repository.
 
 ### One-time setup
 
